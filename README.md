@@ -4,7 +4,7 @@
 
 ## Installation
 
-#### SideCar Linux Kernel Driver
+### SideCar Linux Kernel Driver
 
 ##### x86-64
 
@@ -33,15 +33,15 @@ cd sidecar-driver/aarch64
 make
 ```
 
-To install run the following (after moving driver to ARM in case of cross-compilation):
+To install run the following (after moving driver to ARM device in case of cross-compilation):
 
 ```bash
 sudo insmod cs_driver.ko
 ```
 
-#### SideCar LLVM Toolchain
+### SideCar LLVM Toolchain
 
-#### SideCar Monitors
+### SideCar Monitors
 
 ## Usage
 
