@@ -620,8 +620,8 @@ int main(int argc, char *argv[]) {
     struct sigaction sig;
     sig.sa_sigaction = signal_handler;
     sig.sa_flags = SA_SIGINFO;
-    struct timeval start, stop, diff;
   #if CPU_USAGE 
+    struct timeval start, stop, diff;
     struct rusage myusage_start, myusage_end;
   #endif
 
@@ -640,21 +640,19 @@ int main(int argc, char *argv[]) {
 
   #if CPU_USAGE 
     getrusage(RUSAGE_SELF, &myusage_start); 
-  #endif
     gettimeofday(&start, NULL);
+  #endif
 
     /* extract trace data from etr */
     read_topa();
 
-    gettimeofday(&stop, NULL);
   #if CPU_USAGE 
+    gettimeofday(&stop, NULL);
     getrusage(RUSAGE_SELF, &myusage_end);
-  #endif
 
     timersub(&stop, &start, &diff);
 
     struct timeval utime_diff, stime_diff;
-  #if CPU_USAGE 
     timersub(&myusage_end.ru_utime, &myusage_start.ru_utime, &utime_diff);
     timersub(&myusage_end.ru_stime, &myusage_start.ru_stime, &stime_diff);
 
