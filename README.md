@@ -48,6 +48,15 @@ sudo insmod cs_driver.ko
 
 ### SideCar LLVM Toolchain
 
+To build and install the SideCar LLVM toolchain, run the following commands:
+
+```bash
+./tools/install.sh llvm
+```
+
+This will create a `build` directory in the root of the repository for build files and
+an `install` directory for the installation of the LLVM toolchain.
+
 ### SideCar Monitors
 
 ## Usage
