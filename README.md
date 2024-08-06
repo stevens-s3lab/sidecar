@@ -59,7 +59,7 @@ an `install` directory for the installation of the LLVM toolchain.
 
 ### SideCar Monitors
 
-Any of the SideCar built by moving to the respective directory and running `make`.
+Any of the SideCar monitors can be built by moving to the respective directory and running `make`.
 e.g. for SideCFI:
 
 ```bash
