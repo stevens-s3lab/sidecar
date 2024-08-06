@@ -69,4 +69,21 @@ make
 
 ## Usage
 
+### SideCFI
+
+To compile a file with SideCFI enabled, use `install/bin/clang` and pass the
+flags `-flto -fsanitize=cfi-icall,cfi-vcall -fsanitize-cfi-cross-dso`
+and `-fsanitize-cfi-decouple` for decoupling all CFI checks or `-fsanitize-cfi-slowpath-decouple`
+for decoupling the slow path checks only.
+
+### SideStack
+
+To compile a file with SideStack enabled, use `install/bin/clang` and pass the
+flags `-flto -fsanitize=shadow-call-stack -fsanitize-sidestack`.
+
+### SideASan
+
+To compile a file with SideASan enabled, use `install/bin/clang` and pass the
+flags `-fsanitize=address -mllvm -asan-decouple`.
+
 ## Example
