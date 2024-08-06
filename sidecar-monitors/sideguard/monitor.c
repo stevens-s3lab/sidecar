@@ -252,7 +252,7 @@ void load_dso() {
     printf("\nTYPEMAP UPDATE: data read from file %s\n", filename);
 #endif
     while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%255s %u %llx", typeinfo.symbol, &typeinfo.typeID, &typeinfo.address ) == 3) {
+        if (sscanf(line, "%255s %u %lx", typeinfo.symbol, &typeinfo.typeID, &typeinfo.address ) == 3) {
             typeinfo.address += idso.base_address;
 
             insertTypeMap(typeinfo.typeID, typeinfo.address, idso.handle);
@@ -509,7 +509,7 @@ unsigned long long process_trace_data(char* buf, unsigned long buf_ofst, unsigne
 
                                         break; 
                                     default:
-                                        printf("Encountered invalid SideCFI opcode %llx!\n", op);
+                                        printf("Encountered invalid SideCFI opcode %lx!\n", op);
                                 }
 
                                 i+=8;
@@ -532,7 +532,7 @@ unsigned long long process_trace_data(char* buf, unsigned long buf_ofst, unsigne
                                         sidestack_push(ptw_value);
                                         break;
                                     default:
-                                        printf("Encountered invalid SideStack opcode %llx!\n", op);
+                                        printf("Encountered invalid SideStack opcode %lx!\n", op);
                                 }
 
                                 i+=4;
