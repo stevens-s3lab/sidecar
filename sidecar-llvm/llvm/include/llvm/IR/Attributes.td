@@ -187,6 +187,9 @@ def ReturnsTwice : EnumAttr<"returns_twice">;
 /// Safe Stack protection.
 def SafeStack : EnumAttr<"safestack">;
 
+/// Side Stack protection.
+def SideStack : EnumAttr<"sidestack">;
+
 /// Shadow Call Stack protection.
 def ShadowCallStack : EnumAttr<"shadowcallstack">;
 

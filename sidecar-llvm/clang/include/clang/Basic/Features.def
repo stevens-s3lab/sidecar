@@ -220,8 +220,7 @@ FEATURE(is_trivially_copyable, LangOpts.CPlusPlus)
 FEATURE(is_union, LangOpts.CPlusPlus)
 FEATURE(modules, LangOpts.Modules)
 FEATURE(safe_stack, LangOpts.Sanitize.has(SanitizerKind::SafeStack))
-FEATURE(shadow_call_stack,
-        LangOpts.Sanitize.has(SanitizerKind::ShadowCallStack))
+FEATURE(shadow_call_stack, LangOpts.Sanitize.has(SanitizerKind::ShadowCallStack))
 FEATURE(tls, PP.getTargetInfo().isTLSSupported())
 FEATURE(underlying_type, LangOpts.CPlusPlus)
 

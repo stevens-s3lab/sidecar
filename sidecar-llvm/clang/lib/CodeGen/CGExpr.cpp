@@ -38,6 +38,9 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
+// S3LAB: to print debug messages
+#include "llvm/Support/Debug.h"
+#include "llvm/IR/InlineAsm.h"
 
 #include <string>
 
@@ -58,6 +61,13 @@ llvm::Value *CodeGenFunction::EmitCastToVoidPtr(llvm::Value *value) {
 
   if (value->getType() == destType) return value;
   return Builder.CreateBitCast(value, destType);
+}
+
+// S3LAB: decoupled CFI instrumentation
+static inline uint16_t HashDown(uint64_t data, uint16_t mod)
+{
+  uint16_t v = data ^ (data >> 16) ^ (data >> 32) ^ (data >> 48);
+  return (v % mod);
 }
 
 /// CreateTempAlloca - This creates a alloca and inserts it into the entry
@@ -3307,6 +3317,43 @@ void CodeGenFunction::EmitCfiSlowPathCheck(
 
   EmitBlock(CheckBB);
 
+  // S3LAB: decoupled CFI instrumentation
+  if (CGM.getCodeGenOpts().SanitizeCfiSlowpathDecouple) {
+    llvm::Module *M = &CGM.getModule();
+    auto *VTy = llvm::Type::getVoidTy(M->getContext());
+    llvm::ConstantInt *TypeIdInt = dyn_cast<llvm::ConstantInt>(TypeId);
+    uint64_t TypeIdUint64 = TypeIdInt ? TypeIdInt->getZExtValue() : 0;
+    llvm::InlineAsm *DCfiInlineAsm;
+    llvm::Triple TargetTriple(M->getTargetTriple());
+    llvm::Triple::ArchType Arch = TargetTriple.getArch();
+
+    if (Arch == llvm::Triple::x86 || Arch == llvm::Triple::x86_64) {
+      DCfiInlineAsm = llvm::InlineAsm::get(
+      llvm::FunctionType::get(VTy, {Int64Ty}, false),
+      	StringRef("ptwrite $0"), StringRef("r"), true);
+    } else {
+      DCfiInlineAsm = llvm::InlineAsm::get(
+      llvm::FunctionType::get(VTy, {Int64Ty}, false),
+      	StringRef("nop"), StringRef("r"), true);
+    }
+
+    // Assuming HashDown and dbgs are correctly defined and accessible
+    auto HashedTypeId = HashDown(TypeIdUint64, 0x3FFF);
+    static const uint64_t CfiCheckOpcode = 0x1ULL << 62;
+    LLVM_DEBUG(
+        llvm::dbgs() << "***lowering " << Ptr->getName() << " MD: " << *TypeId << " (" << HashedTypeId << ") TIL kind: SlowPath\n";
+    );
+
+    llvm::Value *PtrAsInt = Builder.CreatePtrToInt(Ptr, Int64Ty);
+    llvm::Value *DCfiVal = Builder.CreateOr(PtrAsInt, llvm::ConstantInt::get(Int64Ty,
+          		  CfiCheckOpcode | ((uint64_t)HashedTypeId << 48)));
+    Builder.CreateCall(DCfiInlineAsm, DCfiVal);
+
+    EmitBlock(Cont);
+
+    return;
+  }
+
   bool WithDiag = !CGM.getCodeGenOpts().SanitizeTrap.has(Kind);
 
   llvm::CallInst *CheckCall;
@@ -3445,7 +3492,6 @@ void CodeGenFunction::EmitCfiCheckFail() {
     else
       EmitTrapCheck(Cond, SanitizerHandler::CFICheckFail);
   }
-
   FinishFunction();
   // The only reference to this function will be created during LTO link.
   // Make sure it survives until then.
@@ -5179,6 +5225,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
     llvm::Value *TypeId = llvm::MetadataAsValue::get(getLLVMContext(), MD);
 
     llvm::Value *CalleePtr = Callee.getFunctionPointer();
+
     llvm::Value *CastedCallee = Builder.CreateBitCast(CalleePtr, Int8PtrTy);
     llvm::Value *TypeTest = Builder.CreateCall(
         CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedCallee, TypeId});
@@ -5189,13 +5236,31 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
         EmitCheckSourceLocation(E->getBeginLoc()),
         EmitCheckTypeDescriptor(QualType(FnType, 0)),
     };
-    if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
-      EmitCfiSlowPathCheck(SanitizerKind::CFIICall, TypeTest, CrossDsoTypeId,
-                           CastedCallee, StaticData);
-    } else {
+
+    // S3LAB: decouple CFI
+    if (CGM.getCodeGenOpts().SanitizeCfiDecouple) {
+      // Print Type ID
+      clang::QualType t(FnType, 0);
+      LLVM_DEBUG(
+        llvm::dbgs() << "****Icall Type ID: " << *MD << " qual type: " << t.getAsString();
+        if (CrossDsoTypeId)
+          llvm::dbgs() << " Cross DSO ID: " << *CrossDsoTypeId << "\n";
+        else
+          llvm::dbgs() << " Cross DSO ID: null\n";
+      );
+
       EmitCheck(std::make_pair(TypeTest, SanitizerKind::CFIICall),
                 SanitizerHandler::CFICheckFail, StaticData,
                 {CastedCallee, llvm::UndefValue::get(IntPtrTy)});
+    } else { // regular CFI
+      if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
+        EmitCfiSlowPathCheck(SanitizerKind::CFIICall, TypeTest, CrossDsoTypeId,
+            CastedCallee, StaticData);
+      } else {
+        EmitCheck(std::make_pair(TypeTest, SanitizerKind::CFIICall),
+            SanitizerHandler::CFICheckFail, StaticData,
+            {CastedCallee, llvm::UndefValue::get(IntPtrTy)});
+      }
     }
   }
 

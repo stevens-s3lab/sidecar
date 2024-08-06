@@ -243,6 +243,11 @@ bool SanitizerArgs::needsFuzzerInterceptors() const {
   return needsFuzzer() && !needsAsanRt() && !needsTsanRt() && !needsMsanRt();
 }
 
+// S3LAB
+bool SanitizerArgs::needsSidecarRt() const {
+  return (CfiDecouple || CfiSlowpathDecouple || Sidestack);
+}
+
 bool SanitizerArgs::needsUbsanRt() const {
   // All of these include ubsan.
   if (needsAsanRt() || needsMsanRt() || needsHwasanRt() || needsTsanRt() ||
@@ -251,17 +256,34 @@ bool SanitizerArgs::needsUbsanRt() const {
     return false;
 
   return (Sanitizers.Mask & NeedsUbsanRt & ~TrapSanitizers.Mask) ||
-         CoverageFeatures;
+    CoverageFeatures;
 }
 
 bool SanitizerArgs::needsCfiRt() const {
   return !(Sanitizers.Mask & SanitizerKind::CFI & ~TrapSanitizers.Mask) &&
-         CfiCrossDso && !ImplicitCfiRuntime;
+         CfiCrossDso && !ImplicitCfiRuntime
+         && !CfiDecouple && !CfiSlowpathDecouple; // S3LAB: Disable this rt when decoupling
+}
+
+// S3LAB: DCFI runtime
+bool SanitizerArgs::needsDCfiRt() const {
+  return Sanitizers.has(SanitizerKind::CFI) && (CfiDecouple || CfiSlowpathDecouple);
+}
+
+// S3LAB: Sidestack runtime
+bool SanitizerArgs::needsSidestackRt() const {
+  return Sanitizers.has(SanitizerKind::ShadowCallStack) && Sidestack;
+}
+
+// S3LAB: Shadow Call Stack runtime
+bool SanitizerArgs::needsScsRt() const {
+  return Sanitizers.has(SanitizerKind::ShadowCallStack) && !Sidestack;
 }
 
 bool SanitizerArgs::needsCfiDiagRt() const {
   return (Sanitizers.Mask & SanitizerKind::CFI & ~TrapSanitizers.Mask) &&
-         CfiCrossDso && !ImplicitCfiRuntime;
+         CfiCrossDso && !ImplicitCfiRuntime
+         && !CfiDecouple && !CfiSlowpathDecouple; // S3LAB: Disable this rt when decoupling
 }
 
 bool SanitizerArgs::requiresPIE() const {
@@ -293,6 +315,16 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
 
   CfiCrossDso = Args.hasFlag(options::OPT_fsanitize_cfi_cross_dso,
                              options::OPT_fno_sanitize_cfi_cross_dso, false);
+  // S3LAB
+  CfiDecouple = Args.hasFlag(options::OPT_fsanitize_cfi_decouple,
+                             options::OPT_fno_sanitize_cfi_decouple, false);
+  if (!CfiDecouple)
+    CfiSlowpathDecouple = Args.hasFlag(options::OPT_fsanitize_cfi_slowpath_decouple,
+                               options::OPT_fno_sanitize_cfi_slowpath_decouple, false);
+  else
+    CfiSlowpathDecouple = false;
+  Sidestack = Args.hasFlag(options::OPT_fsanitize_sidestack,
+                             options::OPT_fno_sanitize_sidestack, false);
 
   ToolChain::RTTIMode RTTIMode = TC.getRTTIMode();
 
@@ -494,7 +526,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         << lastArgumentForMask(D, Args, Kinds & NeedsLTO) << "-flto";
   }
 
-  if ((Kinds & SanitizerKind::ShadowCallStack) &&
+  // S3LAB: Do not reserve register when decoupling SCS
+  if (((Kinds & SanitizerKind::ShadowCallStack) && !Sidestack) &&
       ((TC.getTriple().isAArch64() &&
         !llvm::AArch64::isX18ReservedByDefault(TC.getTriple())) ||
        TC.getTriple().isRISCV()) &&
@@ -508,7 +541,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   // c++abi-specific  parts of UBSan runtime, and they are not provided by the
   // toolchain. We don't have a good way to check the latter, so we just
   // check if the toolchan supports vptr.
-  if (~Supported & SanitizerKind::Vptr) {
+  // S3LAB: Disable ubsanRtCxx for decoupled cfi
+  if (/*!CfiDecouple && */(~Supported & SanitizerKind::Vptr)) {
     SanitizerMask KindsToDiagnose = Kinds & ~TrappingKinds & NeedsUbsanCxxRt;
     // The runtime library supports the Microsoft C++ ABI, but only well enough
     // for CFI. FIXME: Remove this once we support vptr on Windows.
@@ -1035,6 +1069,16 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
   if (CfiCrossDso)
     CmdArgs.push_back("-fsanitize-cfi-cross-dso");
+
+  // S3LAB: decoupled CFI
+  if (CfiDecouple)
+    CmdArgs.push_back("-fsanitize-cfi-decouple");
+  // S3LAB: decoupled slowpath CFI, if the above is not defined
+  else if (CfiSlowpathDecouple)
+    CmdArgs.push_back("-fsanitize-cfi-slowpath-decouple");
+  // S3LAB: decoupled SCS
+  if (Sidestack)
+    CmdArgs.push_back("-fsanitize-sidestack");
 
   if (CfiICallGeneralizePointers)
     CmdArgs.push_back("-fsanitize-cfi-icall-generalize-pointers");

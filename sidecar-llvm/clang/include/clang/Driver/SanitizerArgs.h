@@ -33,6 +33,9 @@ class SanitizerArgs {
   int MsanTrackOrigins = 0;
   bool MsanUseAfterDtor = true;
   bool CfiCrossDso = false;
+  bool CfiDecouple = false; // S3LAB
+  bool CfiSlowpathDecouple = false; // S3LAB
+  bool Sidestack = false; // S3LAB
   bool CfiICallGeneralizePointers = false;
   bool CfiCanonicalJumpTables = false;
   int AsanFieldPadding = 0;
@@ -81,6 +84,10 @@ public:
   bool requiresMinimalRuntime() const { return MinimalRuntime; }
   bool needsDfsanRt() const { return Sanitizers.has(SanitizerKind::DataFlow); }
   bool needsSafeStackRt() const { return SafeStackRuntime; }
+  bool needsSidecarRt() const; // S3LAB
+  bool needsSidestackRt() const; // S3LAB
+  bool needsScsRt() const; // S3LAB
+  bool needsDCfiRt() const; // S3LAB
   bool needsCfiRt() const;
   bool needsCfiDiagRt() const;
   bool needsStatsRt() const { return Stats; }
@@ -92,6 +99,9 @@ public:
   bool linkRuntimes() const { return LinkRuntimes; }
   bool linkCXXRuntimes() const { return LinkCXXRuntimes; }
   bool hasCrossDsoCfi() const { return CfiCrossDso; }
+  bool hasCfiDecouple() const { return CfiDecouple; } // S3LAB
+  bool hasCfiSlowpathDecouple() const { return CfiSlowpathDecouple; } // S3LAB
+  bool hasSidestack() const { return Sidestack; } // S3LAB
   bool hasAnySanitizer() const { return !Sanitizers.empty(); }
   void addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
                llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;

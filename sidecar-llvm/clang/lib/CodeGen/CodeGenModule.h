@@ -36,6 +36,10 @@
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 
+#include <fstream>
+#include <sstream>
+#include <string>
+
 namespace llvm {
 class Module;
 class Constant;
@@ -556,6 +560,11 @@ private:
   MetadataTypeMap MetadataIdMap;
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
+  
+  std::ofstream logFile;
+  void InitializeLogFile();
+  void FinalizeLogFile();
+  std::string GetOutputFileName() const;
 
 public:
   CodeGenModule(ASTContext &C, const HeaderSearchOptions &headersearchopts,

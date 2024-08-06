@@ -420,6 +420,9 @@ namespace llvm {
   /// protect against stack-based overflow vulnerabilities.
   FunctionPass *createSafeStackPass();
 
+  // This pass adds the runtime needed for the side stack.
+  FunctionPass *createSideStackPass();
+
   /// This pass detects subregister lanes in a virtual register that are used
   /// independently of other lanes and splits them into separate virtual
   /// registers.

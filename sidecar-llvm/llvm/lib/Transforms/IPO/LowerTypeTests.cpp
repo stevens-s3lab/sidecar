@@ -80,6 +80,7 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+#include <fstream>
 
 using namespace llvm;
 using namespace lowertypetests;
@@ -399,6 +400,9 @@ class LowerTypeTestsModule {
   IntegerType *Int64Ty = Type::getInt64Ty(M.getContext());
   IntegerType *IntPtrTy = M.getDataLayout().getIntPtrType(M.getContext(), 0);
 
+  // S3LAB: inline asm function for logging data
+  llvm::InlineAsm *DCfiInlineAsm;
+
   // Indirect function call index assignment counter for WebAssembly
   uint64_t IndirectIndex = 1;
 
@@ -511,6 +515,13 @@ public:
   // Lower the module using the action and summary passed as command line
   // arguments. For testing purposes only.
   static bool runForTesting(Module &M);
+
+  // S3LAB: Module marked as DECOUPLE CFI
+  bool DecoupleCfi;
+  bool DecoupleSlowCfi;
+
+  // S3LAB: Typemap output file
+  std::ofstream TypeMapFile;
 };
 
 struct LowerTypeTests : public ModulePass {
@@ -731,6 +742,12 @@ static bool isKnownTypeIdMember(Metadata *TypeId, const DataLayout &DL,
   return false;
 }
 
+static inline uint16_t HashDown(uint64_t data, uint16_t mod)
+{
+	uint16_t v = data ^ (data >> 16) ^ (data >> 32) ^ (data >> 48);
+	return (v % mod);
+}
+
 /// Lower a llvm.type.test call to its implementation. Returns the value to
 /// replace the call with.
 Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
@@ -738,9 +755,6 @@ Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
   // Delay lowering if the resolution is currently unknown.
   if (TIL.TheKind == TypeTestResolution::Unknown)
     return nullptr;
-  if (TIL.TheKind == TypeTestResolution::Unsat)
-    return ConstantInt::getFalse(M.getContext());
-
   Value *Ptr = CI->getArgOperand(0);
   const DataLayout &DL = M.getDataLayout();
   if (isKnownTypeIdMember(TypeId, DL, Ptr, 0))
@@ -752,8 +766,47 @@ Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
 
   Value *PtrAsInt = B.CreatePtrToInt(Ptr, IntPtrTy);
 
+  // S3LAB: decoupled CFI instrumentation
+  //LLVM_DEBUG({
+      dbgs() << "***  lowering" << *CI << " MD: " << *TypeId << " TIL kind: " << TIL.TheKind << '\n';
+  //});
+  if (DecoupleCfi) {
+    //llvm::ConstantInt::get(Int64Ty, llvm::MD5Hash(MDS->getString()));
+    auto TypeIdStr = llvm::dyn_cast<llvm::MDString>(TypeId);
+    uint64_t TypeIdUint64;
+    if (TypeIdStr) {
+      TypeIdUint64 = llvm::MD5Hash(TypeIdStr->getString());
+    } else {
+      auto TypeIdInt = mdconst::dyn_extract<ConstantInt>(TypeId);
+      assert(TypeIdInt);
+      TypeIdUint64 = TypeIdInt->getZExtValue();
+    }
+    // 2 bits opcode reserved for DCFI + SIDESTACK, this leaves 14 bits for the
+    // TypeId
+    auto HashedTypeId = HashDown(TypeIdUint64, 0x3FFF);
+    static const uint64_t CfiCheckOpcode = 0x1ULL << 62;
+    //LLVM_DEBUG({
+        dbgs() << "***  Hashed TypeId: " << HashedTypeId << '\n';
+    //});
+
+    Value *DCfiVal = B.CreateOr(PtrAsInt, ConstantInt::get(Int64Ty,
+          CfiCheckOpcode | ((uint64_t)HashedTypeId << 48)));
+    B.CreateCall(DCfiInlineAsm, {DCfiVal});
+
+    // The check always returns true, so the compiler can optimize out all the
+    // code previously inserted
+    return ConstantInt::getTrue(M.getContext());
+  }
+
+  // S3LAB: this was moved here since instead of simply disallowing these (or
+  // triggering the CFI slow path), we will try to handle it in the monitor
+
+  if (TIL.TheKind == TypeTestResolution::Unsat)
+    return ConstantInt::getFalse(M.getContext());
+
   Constant *OffsetedGlobalAsInt =
       ConstantExpr::getPtrToInt(TIL.OffsetedGlobal, IntPtrTy);
+
   if (TIL.TheKind == TypeTestResolution::Single)
     return B.CreateICmpEQ(PtrAsInt, OffsetedGlobalAsInt);
 
@@ -836,8 +889,16 @@ void LowerTypeTestsModule::buildBitSetsFromGlobalVariables(
   Align MaxAlign;
   uint64_t CurOffset = 0;
   uint64_t DesiredPadding = 0;
+
+  // S3LAB: Print out types of global sets
+  //LLVM_DEBUG({
+      dbgs() << "*** lowering calls to globals:";
+  //});
   for (GlobalTypeMember *G : Globals) {
     auto *GV = cast<GlobalVariable>(G->getGlobal());
+    //LLVM_DEBUG({
+        dbgs() << ' ' << GV->getName();
+    //});
     Align Alignment =
         DL.getValueOrABITypeAlignment(GV->getAlign(), GV->getValueType());
     MaxAlign = std::max(MaxAlign, Alignment);
@@ -863,6 +924,32 @@ void LowerTypeTestsModule::buildBitSetsFromGlobalVariables(
     if (DesiredPadding > 32)
       DesiredPadding = alignTo(InitSize, 32) - InitSize;
   }
+  //LLVM_DEBUG({
+      dbgs() << '\n';
+  //});
+
+  // S3LAB: Write targets
+  // XXX: Needs to be finalized for obtaining C++ classes Type Ids
+  if (DecoupleCfi || DecoupleSlowCfi) {
+    for (GlobalTypeMember *GTM : Globals) {
+      // Ideally the TypeId should be stored in the instruction's metadata so we
+      // don't recalculate it later
+      auto Types = GTM->types();
+      uint64_t TypeIdValue = 0;
+      for (auto *Type : Types) {
+        auto *TypeID = Type->getOperand(1).get();
+        if (auto *ConstantIntTypeID = mdconst::dyn_extract<ConstantInt>(TypeID)) {
+          TypeIdValue = ConstantIntTypeID->getZExtValue();
+          auto HashedTypeId = HashDown(TypeIdValue, 0x3FFF);
+
+          if (TypeMapFile.is_open())
+            TypeMapFile << GTM->getGlobal()->getName().str() << ' ' << HashedTypeId << '\n';
+          dbgs() << "***  AT.typemap++ " << GTM->getGlobal()->getName().str() <<
+            ' ' << HashedTypeId << " TypeIds: " << TypeIds.size() << '\n';
+        }
+     }
+    }
+  }
 
   Constant *NewInit = ConstantStruct::getAnon(M.getContext(), GlobalInits);
   auto *CombinedGlobal =
@@ -871,7 +958,14 @@ void LowerTypeTestsModule::buildBitSetsFromGlobalVariables(
   CombinedGlobal->setAlignment(MaxAlign);
 
   StructType *NewTy = cast<StructType>(NewInit->getType());
-  lowerTypeTestCalls(TypeIds, CombinedGlobal, GlobalLayout);
+
+  // S3LAB: eliminate jump tables when decoupling
+  if (DecoupleCfi) {
+    lowerTypeTestCalls(TypeIds, NULL, GlobalLayout);
+    return;
+  } else {
+    lowerTypeTestCalls(TypeIds, CombinedGlobal, GlobalLayout);
+  }
 
   // Build aliases pointing to offsets into the combined global for each
   // global from which we built the combined global, and replace references
@@ -1046,6 +1140,11 @@ void LowerTypeTestsModule::importTypeTest(CallInst *CI) {
     return;
 
   TypeIdLowering TIL = importTypeId(TypeIdStr->getString());
+  // S3LAB XXX: we do not handle this yet
+  if (DecoupleCfi || DecoupleSlowCfi) {
+    dbgs() << "***LowerTypeTestsModule::importTypeTest\n";
+    abort();
+  }
   Value *Lowered = lowerTypeTestCall(TypeIdStr, CI, TIL);
   if (Lowered) {
     CI->replaceAllUsesWith(Lowered);
@@ -1059,6 +1158,9 @@ void LowerTypeTestsModule::importFunction(
     Function *F, bool isJumpTableCanonical,
     std::vector<GlobalAlias *> &AliasesToErase) {
   assert(F->getType()->getAddressSpace() == 0);
+
+  // S3LAB XXX: handle this?
+  dbgs() << "Importing F: " << F->getName() << "\n";
 
   GlobalValue::VisibilityTypes Visibility = F->getVisibility();
   std::string Name = std::string(F->getName());
@@ -1120,7 +1222,10 @@ void LowerTypeTestsModule::importFunction(
 void LowerTypeTestsModule::lowerTypeTestCalls(
     ArrayRef<Metadata *> TypeIds, Constant *CombinedGlobalAddr,
     const DenseMap<GlobalTypeMember *, uint64_t> &GlobalLayout) {
-  CombinedGlobalAddr = ConstantExpr::getBitCast(CombinedGlobalAddr, Int8PtrTy);
+  // S3LAB: This version does not emit a jumptable and works with
+  // CombinedGlobalAddr == NULL
+  if (CombinedGlobalAddr)
+    CombinedGlobalAddr = ConstantExpr::getBitCast(CombinedGlobalAddr, Int8PtrTy);
 
   // For each type identifier in this disjoint set...
   for (Metadata *TypeId : TypeIds) {
@@ -1136,10 +1241,12 @@ void LowerTypeTestsModule::lowerTypeTestCalls(
 
     ByteArrayInfo *BAI = nullptr;
     TypeIdLowering TIL;
-    TIL.OffsetedGlobal = ConstantExpr::getGetElementPtr(
-        Int8Ty, CombinedGlobalAddr, ConstantInt::get(IntPtrTy, BSI.ByteOffset)),
-    TIL.AlignLog2 = ConstantInt::get(Int8Ty, BSI.AlignLog2);
-    TIL.SizeM1 = ConstantInt::get(IntPtrTy, BSI.BitSize - 1);
+    if (CombinedGlobalAddr) { // S3LAB: no jumptables
+      TIL.OffsetedGlobal = ConstantExpr::getGetElementPtr(
+          Int8Ty, CombinedGlobalAddr, ConstantInt::get(IntPtrTy, BSI.ByteOffset)),
+      TIL.AlignLog2 = ConstantInt::get(Int8Ty, BSI.AlignLog2);
+      TIL.SizeM1 = ConstantInt::get(IntPtrTy, BSI.BitSize - 1);
+    }
     if (BSI.isAllOnes()) {
       TIL.TheKind = (BSI.BitSize == 1) ? TypeTestResolution::Single
                                        : TypeTestResolution::AllOnes;
@@ -1163,10 +1270,13 @@ void LowerTypeTestsModule::lowerTypeTestCalls(
 
     TypeIdUserInfo &TIUI = TypeIdUsers[TypeId];
 
-    if (TIUI.IsExported) {
-      uint8_t *MaskPtr = exportTypeId(cast<MDString>(TypeId)->getString(), TIL);
-      if (BAI)
-        BAI->MaskPtr = MaskPtr;
+    // S3LAB: no jumptables
+    if (CombinedGlobalAddr) {
+      if (TIUI.IsExported) {
+        uint8_t *MaskPtr = exportTypeId(cast<MDString>(TypeId)->getString(), TIL);
+        if (BAI)
+          BAI->MaskPtr = MaskPtr;
+      }
     }
 
     // Lower each call to llvm.type.test for this type identifier.
@@ -1514,8 +1624,50 @@ void LowerTypeTestsModule::buildBitSetsFromFunctionsNative(
   // Build a simple layout based on the regular layout of jump tables.
   DenseMap<GlobalTypeMember *, uint64_t> GlobalLayout;
   unsigned EntrySize = getJumpTableEntrySize();
-  for (unsigned I = 0; I != Functions.size(); ++I)
+
+  // S3LAB
+  //LLVM_DEBUG({
+      dbgs() << "*** lowering calls to functions:";
+  //});
+
+  for (unsigned I = 0; I != Functions.size(); ++I) {
     GlobalLayout[Functions[I]] = I * EntrySize;
+
+    // S3LAB
+    //LLVM_DEBUG({
+        dbgs() << ' ' << Functions[I]->getGlobal()->getName().str();
+    //});
+  }
+
+  // S3LAB
+  //LLVM_DEBUG({
+      dbgs() << '\n';
+  //});
+
+
+  // S3LAB: Write targets
+  if (DecoupleCfi || DecoupleSlowCfi) {
+    // If CFI is not decoupled, there is not constant int TypeId associated
+    // with the targets so the following code will not write anything anyways
+    for (unsigned I = 0; I != Functions.size(); ++I) {
+      // Ideally the TypeId should be stored in the instruction's metadata so we
+      // don't need to recalculate it later
+      GlobalTypeMember *GTM = Functions[I];
+      auto Types = GTM->types();
+      uint64_t TypeIdValue = 0;
+      for (auto *Type : Types) {
+        auto *TypeID = Type->getOperand(1).get();
+        if (auto *ConstantIntTypeID = mdconst::dyn_extract<ConstantInt>(TypeID)) {
+          TypeIdValue = ConstantIntTypeID->getZExtValue();
+          auto HashedTypeId = HashDown(TypeIdValue, 0x3FFF);
+
+          if (TypeMapFile.is_open())
+            TypeMapFile << Functions[I]->getGlobal()->getName().str() << ' ' << HashedTypeId << '\n';
+          dbgs() << "***  AT.typemap " << Functions[I]->getGlobal()->getName().str() << ' ' << HashedTypeId << " TypeIds: " << TypeIds.size() << '\n';
+        }
+      }
+    }
+  }
 
   Function *JumpTableFn =
       Function::Create(FunctionType::get(Type::getVoidTy(M.getContext()),
@@ -1528,7 +1680,13 @@ void LowerTypeTestsModule::buildBitSetsFromFunctionsNative(
   auto JumpTable =
       ConstantExpr::getPointerCast(JumpTableFn, JumpTableType->getPointerTo(0));
 
-  lowerTypeTestCalls(TypeIds, JumpTable, GlobalLayout);
+  // S3LAB: eliminate jump tables when decoupling
+  if (DecoupleCfi) {
+    lowerTypeTestCalls(TypeIds, NULL, GlobalLayout);
+    return;
+  } else {
+    lowerTypeTestCalls(TypeIds, JumpTable, GlobalLayout);
+  }
 
   {
     ScopedSaveAliaseesAndUsed S(M);
@@ -1612,6 +1770,7 @@ void LowerTypeTestsModule::buildBitSetsFromFunctionsWASM(
     GlobalLayout[GTM] = IndirectIndex++;
   }
 
+  // S3LAB XXX: Support WASM?
   // The indirect function table index space starts at zero, so pass a NULL
   // pointer as the subtracted "jump table" offset.
   lowerTypeTestCalls(TypeIds, ConstantPointerNull::get(Int32PtrTy),
@@ -1694,6 +1853,34 @@ LowerTypeTestsModule::LowerTypeTestsModule(
   Arch = TargetTriple.getArch();
   OS = TargetTriple.getOS();
   ObjectFormat = TargetTriple.getObjectFormat();
+
+  // S3LAB: Create instrumentation function
+  auto *VTy = Type::getVoidTy(M.getContext());
+  if (Arch == Triple::x86 || Arch == Triple::x86_64) {
+    DCfiInlineAsm = llvm::InlineAsm::get(
+        llvm::FunctionType::get(VTy, {Int64Ty}, false),
+        StringRef("ptwrite $0"), StringRef("r"), true);
+  } else {
+    DCfiInlineAsm = llvm::InlineAsm::get(
+        llvm::FunctionType::get(VTy, {Int64Ty}, false),
+        StringRef("nop"), StringRef("r"), true);
+  }
+
+  llvm::NamedMDNode *ModMeta = M.getNamedMetadata("source_file_name");
+  if (ModMeta && ModMeta->getNumOperands() > 0) {
+    llvm::MDNode *MDN = ModMeta->getOperand(0);
+    llvm::MDString *SourceFileNameMD = llvm::dyn_cast<llvm::MDString>(MDN->getOperand(0));
+    if (SourceFileNameMD) {
+      std::string sourceFileName = SourceFileNameMD->getString().str();
+      std::string logFileName = sourceFileName + ".typemap";
+      TypeMapFile.open(logFileName, std::ios::out | std::ios_base::app);
+      if (!TypeMapFile.is_open()) {
+        llvm::errs() << "Error opening file: " << logFileName << "\n";
+      }
+    }
+  } else {
+    llvm::errs() << "Error: source_file_name metadata not found\n";
+  }
 }
 
 bool LowerTypeTestsModule::runForTesting(Module &M) {
@@ -1759,6 +1946,9 @@ void LowerTypeTestsModule::replaceCfiUses(Function *Old, Value *New,
     if (isDirectCall(U) && (Old->isDSOLocal() || !IsJumpTableCanonical))
       continue;
 
+    // S3LAB: XXX temporary for debugging
+    // dbgs() << "replaceCfiUses for " << Old->getName() << "\n";
+
     // Must handle Constants specially, we cannot call replaceUsesOfWith on a
     // constant because they are uniqued.
     if (auto *C = dyn_cast<Constant>(U.getUser())) {
@@ -1786,7 +1976,7 @@ bool LowerTypeTestsModule::lower() {
   Function *TypeTestFunc =
       M.getFunction(Intrinsic::getName(Intrinsic::type_test));
 
-  if (DropTypeTests && TypeTestFunc) {
+    if (DropTypeTests && TypeTestFunc) {
     for (auto UI = TypeTestFunc->use_begin(), UE = TypeTestFunc->use_end();
          UI != UE;) {
       auto *CI = cast<CallInst>((*UI++).getUser());
@@ -1893,6 +2083,11 @@ bool LowerTypeTestsModule::lower() {
   // address taken functions in case they are address taken in other modules.
   const bool CrossDsoCfi = M.getModuleFlag("Cross-DSO CFI") != nullptr;
 
+  // S3LAB: Check if this module is decoupled
+  DecoupleCfi = M.getModuleFlag("DECOUPLE CFI") != nullptr;
+  DecoupleSlowCfi = M.getModuleFlag("DECOUPLE SLOW CFI") != nullptr;
+  assert(!(DecoupleCfi && DecoupleSlowCfi));
+
   struct ExportedFunctionInfo {
     CfiFunctionLinkage Linkage;
     MDNode *FuncMD; // {name, linkage, type[, type...]}
@@ -1908,6 +2103,7 @@ bool LowerTypeTestsModule::lower() {
             AddressTaken.insert(Ref.getGUID());
 
     NamedMDNode *CfiFunctionsMD = M.getNamedMetadata("cfi.functions");
+
     if (CfiFunctionsMD) {
       for (auto FuncMD : CfiFunctionsMD->operands()) {
         assert(FuncMD->getNumOperands() >= 2);
@@ -2163,12 +2359,13 @@ bool LowerTypeTestsModule::lower() {
     for (GlobalClassesTy::member_iterator MI =
              GlobalClasses.member_begin(S.first);
          MI != GlobalClasses.member_end(); ++MI) {
-      if (MI->is<Metadata *>())
+      if (MI->is<Metadata *>()) {
         TypeIds.push_back(MI->get<Metadata *>());
-      else if (MI->is<GlobalTypeMember *>())
+      } else if (MI->is<GlobalTypeMember *>()) {
         Globals.push_back(MI->get<GlobalTypeMember *>());
-      else
+      } else {
         ICallBranchFunnels.push_back(MI->get<ICallBranchFunnel *>());
+      }
     }
 
     // Order type identifiers by unique ID for determinism. This ordering is
@@ -2250,6 +2447,10 @@ bool LowerTypeTestsModule::lower() {
     }
   }
 
+  if (TypeMapFile.is_open()) {
+    TypeMapFile.close();
+  }
+
   return true;
 }
 
@@ -2262,6 +2463,7 @@ PreservedAnalyses LowerTypeTestsPass::run(Module &M,
     Changed =
         LowerTypeTestsModule(M, ExportSummary, ImportSummary, DropTypeTests)
             .lower();
+
   if (!Changed)
     return PreservedAnalyses::all();
   return PreservedAnalyses::none();

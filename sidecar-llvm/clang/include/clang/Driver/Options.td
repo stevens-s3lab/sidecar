@@ -1509,6 +1509,26 @@ defm sanitize_cfi_cross_dso : BoolOption<"f", "sanitize-cfi-cross-dso",
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [CoreOption, NoXarchOption], "Disable">,
   BothFlags<[], " control flow integrity (CFI) checks for cross-DSO calls.">>,
   Group<f_clang_Group>;
+
+// S3LAB: Decouple CFI option
+defm sanitize_cfi_decouple : BoolOption<"f", "sanitize-cfi-decouple",
+  CodeGenOpts<"SanitizeCfiDecouple">, DefaultFalse,
+  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [CoreOption, NoXarchOption], "Disable">,
+  BothFlags<[], " decoupled control flow integrity (CFI) checks.">>,
+  Group<f_clang_Group>;
+// S3LAB: Decouple CFI Slowpath option
+defm sanitize_cfi_slowpath_decouple : BoolOption<"f", "sanitize-cfi-slowpath-decouple",
+  CodeGenOpts<"SanitizeCfiSlowpathDecouple">, DefaultFalse,
+  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [CoreOption, NoXarchOption], "Disable">,
+  BothFlags<[], " decoupled control flow integrity (CFI) slowpath checks.">>,
+  Group<f_clang_Group>;
+// S3LAB: Decouple Shadow Stack (aka sidestack) option
+defm sanitize_sidestack : BoolOption<"f", "sanitize-sidestack",
+  CodeGenOpts<"SanitizeSidestack">, DefaultFalse,
+  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [CoreOption, NoXarchOption], "Disable">,
+  BothFlags<[], " decoupled shadow call stack (SCS) aka sidestack.">>,
+  Group<f_clang_Group>;
+
 def fsanitize_cfi_icall_generalize_pointers : Flag<["-"], "fsanitize-cfi-icall-generalize-pointers">,
                                               Group<f_clang_Group>,
                                               HelpText<"Generalize pointers in CFI indirect call type signature checks">,

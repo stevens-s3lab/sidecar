@@ -28,6 +28,7 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 
 using namespace clang;
@@ -2787,19 +2788,33 @@ void CodeGenFunction::EmitVTablePtrCheck(const CXXRecordDecl *RD,
   llvm::Value *TypeId = llvm::MetadataAsValue::get(getLLVMContext(), MD);
 
   llvm::Value *CastedVTable = Builder.CreateBitCast(VTable, Int8PtrTy);
+
   llvm::Value *TypeTest = Builder.CreateCall(
-      CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, TypeId});
+  	CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, TypeId});
 
   llvm::Constant *StaticData[] = {
-      llvm::ConstantInt::get(Int8Ty, TCK),
-      EmitCheckSourceLocation(Loc),
-      EmitCheckTypeDescriptor(QualType(RD->getTypeForDecl(), 0)),
+    llvm::ConstantInt::get(Int8Ty, TCK),
+    EmitCheckSourceLocation(Loc),
+    EmitCheckTypeDescriptor(QualType(RD->getTypeForDecl(), 0)),
   };
 
-  auto CrossDsoTypeId = CGM.CreateCrossDsoCfiTypeId(MD);
-  if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
-    EmitCfiSlowPathCheck(M, TypeTest, CrossDsoTypeId, CastedVTable, StaticData);
-    return;
+  // S3LAB: decouple CFI
+  // Print vcall info
+  if (CGM.getCodeGenOpts().SanitizeCfiDecouple || CGM.getCodeGenOpts().SanitizeCfiSlowpathDecouple) {
+    // Print Type ID
+    LLVM_DEBUG(
+      clang::QualType t(RD->getTypeForDecl(), 0);
+      llvm::dbgs() << "***VCall Type ID: " << *MD << " qual type: " << t.getAsString() << "\n";
+    );
+  }
+
+  // S3LAB Only emit the slow path check if we are not decoupling everything
+  if (!CGM.getCodeGenOpts().SanitizeCfiDecouple) {
+    auto CrossDsoTypeId = CGM.CreateCrossDsoCfiTypeId(MD);
+    if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
+      EmitCfiSlowPathCheck(M, TypeTest, CrossDsoTypeId, CastedVTable, StaticData);
+      return;
+    }
   }
 
   if (CGM.getCodeGenOpts().SanitizeTrap.has(M)) {
@@ -2808,12 +2823,12 @@ void CodeGenFunction::EmitVTablePtrCheck(const CXXRecordDecl *RD,
   }
 
   llvm::Value *AllVtables = llvm::MetadataAsValue::get(
-      CGM.getLLVMContext(),
-      llvm::MDString::get(CGM.getLLVMContext(), "all-vtables"));
+    CGM.getLLVMContext(),
+    llvm::MDString::get(CGM.getLLVMContext(), "all-vtables"));
   llvm::Value *ValidVtable = Builder.CreateCall(
-      CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, AllVtables});
+    CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, AllVtables});
   EmitCheck(std::make_pair(TypeTest, M), SanitizerHandler::CFICheckFail,
-            StaticData, {CastedVTable, ValidVtable});
+    StaticData, {CastedVTable, ValidVtable});
 }
 
 bool CodeGenFunction::ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD) {
@@ -2854,6 +2869,12 @@ llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(
   if (SanOpts.has(SanitizerKind::CFIVCall) &&
       !getContext().getSanitizerBlacklist().isBlacklistedType(
           SanitizerKind::CFIVCall, TypeName)) {
+    // S3LAB: decouple CFI
+    if (CGM.getCodeGenOpts().SanitizeCfiDecouple || CGM.getCodeGenOpts().SanitizeCfiSlowpathDecouple) {
+      // Print Type ID
+      clang::QualType t(RD->getTypeForDecl(), 0);
+      llvm::dbgs() << "***VCall 2 Type ID: " << *MD << " qual type: " << t.getAsString() << "\n";
+    }
     EmitCheck(std::make_pair(CheckResult, SanitizerKind::CFIVCall),
               SanitizerHandler::CFICheckFail, {}, {});
   }

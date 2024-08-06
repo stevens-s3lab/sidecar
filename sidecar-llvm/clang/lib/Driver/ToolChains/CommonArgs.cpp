@@ -868,14 +868,30 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     NonWholeStaticRuntimes.push_back("safestack");
     RequiredSymbols.push_back("__safestack_init");
   }
+  // S3LAB
+  if (SanArgs.needsSidestackRt() && SanArgs.linkRuntimes()) {
+    StaticRuntimes.push_back("sidestack");
+  }
+  // S3LAB
+  if (SanArgs.needsScsRt() && SanArgs.linkRuntimes()) {
+    StaticRuntimes.push_back("scs");
+  }
   if (!(SanArgs.needsSharedRt() && SanArgs.needsUbsanRt() && SanArgs.linkRuntimes())) {
     if (SanArgs.needsCfiRt() && SanArgs.linkRuntimes())
       StaticRuntimes.push_back("cfi");
+    // S3LAB
+    if (SanArgs.needsDCfiRt() && SanArgs.linkRuntimes()) {
+      StaticRuntimes.push_back("dcfi");
+    }
     if (SanArgs.needsCfiDiagRt() && SanArgs.linkRuntimes()) {
       StaticRuntimes.push_back("cfi_diag");
       if (SanArgs.linkCXXRuntimes())
         StaticRuntimes.push_back("ubsan_standalone_cxx");
     }
+  }
+  // S3LAB
+  if (SanArgs.needsSidecarRt() && SanArgs.linkRuntimes()) {
+    StaticRuntimes.push_back("sidecar");
   }
   if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes()) {
     NonWholeStaticRuntimes.push_back("stats");
@@ -946,7 +962,7 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   if (AddExportDynamic)
     CmdArgs.push_back("--export-dynamic");
 
-  if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic)
+  if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic && !SanArgs.hasCfiDecouple())
     CmdArgs.push_back("--export-dynamic-symbol=__cfi_check");
 
   return !StaticRuntimes.empty() || !NonWholeStaticRuntimes.empty();

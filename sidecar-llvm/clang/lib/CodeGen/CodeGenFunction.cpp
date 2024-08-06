@@ -754,8 +754,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
   if (SanOpts.has(SanitizerKind::SafeStack))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
-  if (SanOpts.has(SanitizerKind::ShadowCallStack))
+  /* S3LAB
+  if (SanOpts.has(SanitizerKind::SideStack))
+    Fn->addFnAttr(llvm::Attribute::SideStack);
+  */
+  // S3LAB
+  if (SanOpts.has(SanitizerKind::ShadowCallStack)) {
     Fn->addFnAttr(llvm::Attribute::ShadowCallStack);
+    if (CGM.getCodeGenOpts().SanitizeSidestack)
+      Fn->addFnAttr(llvm::Attribute::SideStack);
+  }
 
   // Apply fuzzing attribute to the function.
   if (SanOpts.hasOneOf(SanitizerKind::Fuzzer | SanitizerKind::FuzzerNoLink))

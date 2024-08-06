@@ -162,6 +162,7 @@ bool CrossDSOCFI::runOnModule(Module &M) {
     MDBuilder(M.getContext()).createBranchWeights((1U << 20) - 1, 1);
   if (M.getModuleFlag("Cross-DSO CFI") == nullptr)
     return false;
+  // S3LAB: We want to keep the stub to generate the lower type primitives for the new targets
   buildCFICheck(M);
   return true;
 }

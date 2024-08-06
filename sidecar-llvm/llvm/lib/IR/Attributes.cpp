@@ -437,6 +437,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "sspstrong";
   if (hasAttribute(Attribute::SafeStack))
     return "safestack";
+  if (hasAttribute(Attribute::SideStack))
+    return "sidestack";
   if (hasAttribute(Attribute::ShadowCallStack))
     return "shadowcallstack";
   if (hasAttribute(Attribute::StrictFP))

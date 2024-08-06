@@ -340,7 +340,6 @@ if(COMPILER_RT_INCLUDE_TESTS)
 endif()
 
 # S3LAB
-# TODO: Default is ON for now, but should eventually be OFF
 option(ASAN_PERF_ANALYZE "Enable statistics collection to analyze ASan performance." OFF)
 option(ASAN_DECOUPLE "Decouple ASan and run checks in a separate process." ON)
 option(USE_PTWRITE "Use PTWRITE instruction for sending messages (only for x86_64)." ON)

@@ -180,9 +180,13 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
   // CoverageMappingModuleGen object.
   if (CodeGenOpts.CoverageMapping)
     CoverageMapping.reset(new CoverageMappingModuleGen(*this, *CoverageInfo));
+
+  // S3LAB: open typemap file
+  InitializeLogFile();
 }
 
-CodeGenModule::~CodeGenModule() {}
+CodeGenModule::~CodeGenModule() {
+}
 
 void CodeGenModule::createObjCRuntime() {
   // This is just isGNUFamily(), but we want to force implementors of
@@ -403,6 +407,26 @@ void InstrProfStats::reportDiagnostics(DiagnosticsEngine &Diags,
   }
 }
 
+void CodeGenModule::InitializeLogFile() {
+  llvm::LLVMContext &Ctx = getLLVMContext();
+  llvm::NamedMDNode *ModMeta = TheModule.getOrInsertNamedMetadata("source_file_name");
+  llvm::MDString *SourceFileNameMD = llvm::MDString::get(Ctx, GetOutputFileName());
+  ModMeta->addOperand(llvm::MDNode::get(Ctx, SourceFileNameMD));
+}
+
+std::string CodeGenModule::GetOutputFileName() const {
+  std::string outputFileName = TheModule.getName().str();
+  size_t lastSlash = outputFileName.find_last_of("/\\");
+  if (lastSlash != std::string::npos) {
+    outputFileName = outputFileName.substr(lastSlash + 1);
+  }
+  size_t lastDot = outputFileName.find_last_of('.');
+  if (lastDot != std::string::npos) {
+    outputFileName = outputFileName.substr(0, lastDot);
+  }
+  return outputFileName;
+}
+
 static void setVisibilityFromDLLStorageClass(const clang::LangOptions &LO,
                                              llvm::Module &M) {
   if (!LO.VisibilityFromDLLStorageClass)
@@ -487,6 +511,7 @@ void CodeGenModule::Release() {
   EmitDeferredUnusedCoverageMappings();
   if (CoverageMapping)
     CoverageMapping->emit();
+  // S3LAB: we need these stubs to force processing of the corresponding targets
   if (CodeGenOpts.SanitizeCfiCrossDso) {
     CodeGenFunction(*this).EmitCfiCheckFail();
     CodeGenFunction(*this).EmitCfiCheckStub();
@@ -598,9 +623,22 @@ void CodeGenModule::Release() {
                               llvm::MDString::get(Ctx, ABIStr));
   }
 
+  if (CodeGenOpts.SanitizeCfiDecouple) {
+    // S3LAB: Indicate that we want decoupled control flow integrity checks.
+    getModule().addModuleFlag(llvm::Module::Override, "DECOUPLE CFI", 1);
+  } else if (CodeGenOpts.SanitizeCfiSlowpathDecouple) {
+    // S3LAB: Indicate that we want decoupled slow path control flow integrity checks.
+    getModule().addModuleFlag(llvm::Module::Override, "DECOUPLE SLOW CFI", 1);
+  }
+
   if (CodeGenOpts.SanitizeCfiCrossDso) {
     // Indicate that we want cross-DSO control flow integrity checks.
     getModule().addModuleFlag(llvm::Module::Override, "Cross-DSO CFI", 1);
+  }
+
+  if (CodeGenOpts.SanitizeSidestack) {
+    // S3LAB: Indicate that we want decoupled control flow integrity checks.
+    getModule().addModuleFlag(llvm::Module::Override, "SIDESTACK", 1);
   }
 
   if (CodeGenOpts.WholeProgramVTables) {
@@ -1962,6 +2000,13 @@ void CodeGenModule::SetInternalFunctionAttributes(GlobalDecl GD,
   setNonAliasAttributes(GD, F);
 }
 
+// S3LAB: Helper function
+static inline uint16_t HashDown(uint64_t data, uint16_t mod)
+{
+	uint16_t v = data ^ (data >> 16) ^ (data >> 32) ^ (data >> 48);
+	return (v % mod);
+}
+
 static void setLinkageForGV(llvm::GlobalValue *GV, const NamedDecl *ND) {
   // Set linkage and visibility in case we never see a definition.
   LinkageInfo LV = ND->getLinkageAndVisibility();
@@ -1989,9 +2034,16 @@ void CodeGenModule::CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
   F->addTypeMetadata(0, CreateMetadataIdentifierGeneralized(FD->getType()));
 
   // Emit a hash-based bit set entry for cross-DSO calls.
-  if (CodeGenOpts.SanitizeCfiCrossDso)
-    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD))
+  // S3LAB: Add metadata to all icalled functions for DCFI
+  if (CodeGenOpts.SanitizeCfiCrossDso || CodeGenOpts.SanitizeCfiDecouple)
+    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD)) {
       F->addTypeMetadata(0, llvm::ConstantAsMetadata::get(CrossDsoTypeId));
+
+      // S3LAB: print out function type
+      auto HashedTypeId = HashDown(CrossDsoTypeId->getZExtValue(), 0x3FFF);
+      //llvm::dbgs() << "***create func md " << F->getName() << ' ' << *MD << ' '
+        //    << *CrossDsoTypeId << " (" << HashedTypeId << ")\n";
+    }
 }
 
 void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
@@ -6198,10 +6250,16 @@ void CodeGenModule::AddVTableTypeMetadata(llvm::GlobalVariable *VTable,
       CreateMetadataIdentifierForType(QualType(RD->getTypeForDecl(), 0));
   VTable->addTypeMetadata(Offset.getQuantity(), MD);
 
-  if (CodeGenOpts.SanitizeCfiCrossDso)
-    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD))
+  // S3LAB: we want a type id for all VTables
+  if (CodeGenOpts.SanitizeCfiCrossDso || CodeGenOpts.SanitizeCfiDecouple)
+    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD)) {
       VTable->addTypeMetadata(Offset.getQuantity(),
                               llvm::ConstantAsMetadata::get(CrossDsoTypeId));
+
+      auto HashedTypeId = HashDown(CrossDsoTypeId->getZExtValue(), 0x3FFF);
+      //llvm::dbgs() << "***create vtable md " << VTable->getName() << ' ' <<
+	//                  *CrossDsoTypeId << " (" << HashedTypeId << ")" << "\n";
+    }
 
   if (NeedAllVtablesTypeId()) {
     llvm::Metadata *MD = llvm::MDString::get(getLLVMContext(), "all-vtables");

@@ -217,6 +217,9 @@ CODEGENOPT(SanitizeMemoryTrackOrigins, 2, 0) ///< Enable tracking origins in
 CODEGENOPT(SanitizeMemoryUseAfterDtor, 1, 0) ///< Enable use-after-delete detection
                                              ///< in MemorySanitizer
 CODEGENOPT(SanitizeCfiCrossDso, 1, 0) ///< Enable cross-dso support in CFI.
+CODEGENOPT(SanitizeCfiDecouple, 1, 0) ///< Enable decoupling of CFI checks (S3LAB).
+CODEGENOPT(SanitizeCfiSlowpathDecouple, 1, 0) ///< Enable decoupling of CFI slowpath checks (S3LAB).
+CODEGENOPT(SanitizeSidestack, 1, 0) ///< Enable decoupling of Shadow Call Stack aka Sidestack (S3LAB).
 CODEGENOPT(SanitizeMinimalRuntime, 1, 0) ///< Use "_minimal" sanitizer runtime for
                                          ///< diagnostics.
 CODEGENOPT(SanitizeCfiICallGeneralizePointers, 1, 0) ///< Generalize pointer types in

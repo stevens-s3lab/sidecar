@@ -422,10 +422,18 @@ llvm::Function *CodeGenModule::CreateGlobalInitOrCleanUpFunction(
   if (getLangOpts().Sanitize.has(SanitizerKind::SafeStack) &&
       !isInSanitizerBlacklist(SanitizerKind::SafeStack, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
-
+  /* S3LAB
+  if (getLangOpts().Sanitize.has(SanitizerKind::SideStack) &&
+      !isInSanitizerBlacklist(SanitizerKind::SideStack, Fn, Loc))
+    Fn->addFnAttr(llvm::Attribute::SideStack);
+  */
+  // S3LAB
   if (getLangOpts().Sanitize.has(SanitizerKind::ShadowCallStack) &&
-      !isInSanitizerBlacklist(SanitizerKind::ShadowCallStack, Fn, Loc))
+      !isInSanitizerBlacklist(SanitizerKind::ShadowCallStack, Fn, Loc)) {
     Fn->addFnAttr(llvm::Attribute::ShadowCallStack);
+    if (getCodeGenOpts().SanitizeSidestack)
+      Fn->addFnAttr(llvm::Attribute::SideStack);
+  }
 
   return Fn;
 }

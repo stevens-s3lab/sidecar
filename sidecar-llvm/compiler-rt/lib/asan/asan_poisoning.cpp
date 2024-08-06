@@ -482,6 +482,8 @@ void __asan_unpoison_stack_memory(uptr addr, uptr size) {
 
 //S3LAB 
 #ifdef ASAN_DECOUPLE
+//this function is rarely used as well:https://github.com/stevens-s3lab/asan-stm/search?q=__sanitizer_annotate_contiguous_container
+//might consider disable it 
 void __sanitizer_annotate_contiguous_container(const void *beg_p,
                    const void *end_p,
                    const void *old_mid_p,

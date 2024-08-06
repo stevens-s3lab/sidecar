@@ -68,6 +68,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeFixupBWInstPassPass(PR);
   initializeEvexToVexInstPassPass(PR);
   initializeFixupLEAPassPass(PR);
+  initializeShadowCallStackPass(PR);
   initializeFPSPass(PR);
   initializeX86FixupSetCCPassPass(PR);
   initializeX86CallFrameOptimizationPass(PR);
@@ -524,6 +525,8 @@ void X86PassConfig::addPreEmitPass() {
     addPass(new X86ExecutionDomainFix());
     addPass(createBreakFalseDeps());
   }
+
+  addPass(createShadowCallStackPass());
 
   addPass(createX86IndirectBranchTrackingPass());
 
