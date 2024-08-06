@@ -7,7 +7,7 @@ append-only channels between applications and security monitors.
 We implemented security defenses over SideCar for control-flow integrity (SideCFI), shadow call stacks (SideStack), and memory error checking (SideASan).
 We implemented an x86-64 and aarch64 Linux kernel driver to
 facilitate communication between the monitors and the processor's debugging infrastructure
-and a modified version of the LLVM compiler to generate SideCar-compatible code that can be used with the monitors._
+and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatible code that can be used with the monitors._
 
 ## Installation
 
