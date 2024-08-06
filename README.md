@@ -2,12 +2,12 @@
 
 ### Leveraging Debugging Extensions in Commodity Processors to Secure Software
 
-We present the implementation of SideCar, a novel approach leveraging debugging infrastructure in Intel and Arm processors to create secure,
+_We present the implementation of SideCar, a novel approach leveraging debugging infrastructure in Intel and Arm processors to create secure,
 append-only channels between applications and security monitors.
 We implemented security defenses over SideCar for control-flow integrity (SideCFI), shadow call stacks (SideStack), and memory error checking (SideASan).
 We implemented an x86-64 and aarch64 Linux kernel driver to
 facilitate communication between the monitors and the processor's debugging infrastructure
-and a modified version of the LLVM compiler to generate SideCar-compatible code that can be used with the monitors.
+and a modified version of the LLVM compiler to generate SideCar-compatible code that can be used with the monitors._
 
 ## Installation
 
