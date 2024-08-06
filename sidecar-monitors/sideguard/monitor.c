@@ -657,14 +657,12 @@ int main(int argc, char *argv[]) {
   #if CPU_USAGE 
     timersub(&myusage_end.ru_utime, &myusage_start.ru_utime, &utime_diff);
     timersub(&myusage_end.ru_stime, &myusage_start.ru_stime, &stime_diff);
-  #endif
 
     printf("time=%lu.%06lu utime=%lu.%06lu stime=%lu.%06lu\n",
             diff.tv_sec, (unsigned long)diff.tv_usec, 
             utime_diff.tv_sec, (unsigned long)utime_diff.tv_usec, 
             stime_diff.tv_sec, (unsigned long)stime_diff.tv_usec); 
 
-  #if CPU_USAGE 
     double wall_time = diff.tv_sec + diff.tv_usec / 1000000.0; 
     double cpu_time = utime_diff.tv_sec + utime_diff.tv_usec / 1000000.0 + stime_diff.tv_sec + stime_diff.tv_usec / 1000000.0; 
     double cpu_usage = (cpu_time / wall_time) * 100.0; 
