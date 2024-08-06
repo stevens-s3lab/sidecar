@@ -22,6 +22,8 @@
 
 #include "sidestack_decode.h"
 
+#define CPU_USAGE 0
+
 /* driver defines */
 #define DEVICE_NAME         "/dev/"PTW_DEV_NAME
 #define TRACE_OUT			"trace.bin"
@@ -103,7 +105,7 @@ read_topa(void)
 				leftover = 0;
 			}
 
-			i = process_trace_data(topa, i, local_base + read_size, false, wrap, false);
+			i = process_trace_data(topa, i, (unsigned long)local_base + read_size, false, wrap, false);
 
 			//printf("i moved to %d\n", i);
 
@@ -139,19 +141,6 @@ read_topa(void)
 				strerror(errno));
 		exit(EXIT_FAILURE); 
 	}
-
-	/* read remaining */
-	printf("Performing final read.\n");
-	//printf("i currently at %llu\n", i);
-	//printf("Calling ptd with %llu, %llu, %llu, %d, %d, %d\n", topa, i, buf_offset, false, false, true);
-	//i = process_trace_data(local_base, 0, buf_offset, false, false, true);
-
-	/* log monitor stats */
-	printf("%lld bytes copied\n", bytes_written);
-
-	printf("rpage: %ld wpage: %ld\n", 
-			*rpage,
-			*wpage);
 }
 
 void signal_handler(int n, siginfo_t *info, void *unused) {
@@ -215,13 +204,6 @@ pt_init(void)
 
 	/* get rrp and calc topa_end */
 	topa_end = topa_size / buf_sz;
-
-	printf("topa_sz: %ld topa_end: %d buf_sz: %d rpage: %ld wpage: %ld\n", 
-			topa_size, 
-			topa_end,
-			buf_sz,
-			*rpage,
-			*wpage);
 }
 
 void
@@ -437,7 +419,9 @@ main(int argc, char *argv[])
 	sig.sa_sigaction = signal_handler;
 	sig.sa_flags = SA_SIGINFO;
 	struct timeval start, stop, diff;
+  #if CPU_USAGE 
 	struct rusage myusage_start, myusage_end;
+  #endif
 
 	/* set up signal handler */
 	sigaction(SIGUSR1, &sig, NULL);
@@ -456,39 +440,46 @@ main(int argc, char *argv[])
 	/* initialize sidestack */
 	sidestack_init();
 
-#if 1
 	/* initialize for trace capturing */
 	pt_init();
 
+  #if CPU_USAGE 
 	getrusage(RUSAGE_SELF, &myusage_start); 
+  #endif
 	gettimeofday(&start, NULL);
 
 	/* extract trace data from etr */
 	read_topa();
 
 	gettimeofday(&stop, NULL);
+  #if CPU_USAGE 
 	getrusage(RUSAGE_SELF, &myusage_end);
+  #endif  
 
 	timersub(&stop, &start, &diff);
 
 	struct timeval utime_diff, stime_diff;
+  #if CPU_USAGE 
 	timersub(&myusage_end.ru_utime, &myusage_start.ru_utime, &utime_diff);
 	timersub(&myusage_end.ru_stime, &myusage_start.ru_stime, &stime_diff);
+  #endif
 
 	printf("time=%lu.%06lu utime=%lu.%06lu stime=%lu.%06lu\n",
-			diff.tv_sec, diff.tv_usec, 
-			utime_diff.tv_sec, utime_diff.tv_usec, 
-			stime_diff.tv_sec, stime_diff.tv_usec); 
+			diff.tv_sec, (unsigned long)diff.tv_usec, 
+			utime_diff.tv_sec, (unsigned long)utime_diff.tv_usec, 
+			stime_diff.tv_sec, (unsigned long)stime_diff.tv_usec); 
 
+
+  #if CPU_USAGE
 	double wall_time = diff.tv_sec + diff.tv_usec / 1000000.0; 
 	double cpu_time = utime_diff.tv_sec + utime_diff.tv_usec / 1000000.0 + stime_diff.tv_sec + stime_diff.tv_usec / 1000000.0; 
 	double cpu_usage = (cpu_time / wall_time) * 100.0; 
 
 	printf("CPU usage = %.2f%%\n", cpu_usage);
+  #endif
 
 	/* cleanup trace capturing */
 	pt_destroy();
-#endif
 
 	/* cleanup sidestack */
 	sidestack_deinit();

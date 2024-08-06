@@ -27,7 +27,7 @@
 #define READ_BUFFER_SIZE	  PAGE_SIZE
 
 /* controls */
-#define MDEBUG 1
+#define MDEBUG 0
 
 /* output trace file */
 FILE *trace_out;
