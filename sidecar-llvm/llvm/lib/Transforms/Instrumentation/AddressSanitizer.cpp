@@ -88,7 +88,7 @@
 #include <string>
 #include <tuple>
 // S3LAB
-#include "../../../../../coresight_utils/monitor/asan_decouple.h"
+#include "../../../../../sidecar-monitors/sideasan/asan_decouple.h"
 
 
 using namespace llvm;
