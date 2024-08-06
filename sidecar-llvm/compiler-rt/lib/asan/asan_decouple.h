@@ -5,7 +5,7 @@
 // vim: ts=2:sw=2:expandtab
 
 #include "decouple_device.h"
-#include "../../../../coresight_utils/monitor/asan_decouple.h"
+#include "../../../../sidecar-monitors/sideasan/asan_decouple.h"
 
 namespace __asan {
 
