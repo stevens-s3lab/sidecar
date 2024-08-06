@@ -21,13 +21,13 @@
 
 /* driver defines */
 #define DEVICE_NAME         "/dev/"PTW_DEV_NAME
-#define TRACE_OUT			"trace.bin"
-#define PKT_OUT				"ptw_packet.log"
-#define PAGE_SIZE			sysconf(_SC_PAGE_SIZE)
-#define READ_BUFFER_SIZE	PAGE_SIZE
+#define TRACE_OUT			      "trace.bin"
+#define PKT_OUT				      "ptw_packet.log"
+#define PAGE_SIZE			      sysconf(_SC_PAGE_SIZE)
+#define READ_BUFFER_SIZE	  PAGE_SIZE
 
 /* controls */
-#define MDEBUG 0
+#define MDEBUG 1
 
 /* output trace file */
 FILE *trace_out;
@@ -38,7 +38,6 @@ char *overflow_buf = NULL;
 /* sidetypemap */
 uint64_t txt_base_addr = -1;
 uint64_t ro_base_addr = -1;
-char *ftmp;
 
 /* file descriptor device */
 int fd;
@@ -56,11 +55,15 @@ int running = 1;
 unsigned long long int bytes_written = 0;
 
 /* mapping struct */
+#define MAX_TYPEMAP 99999
+
 typedef struct TargetAddress {
 	unsigned long long address;
 	struct TargetAddress *next;
+  void *dso_handle;
 } TargetAddress;
-TargetAddress *typeIDArray[10000] = {NULL};
+
+TargetAddress *typeIDArray[MAX_TYPEMAP] = {NULL};
 
 typedef struct TypeMap {
 	char symbol[256];
@@ -68,11 +71,13 @@ typedef struct TypeMap {
 	uint64_t address;
 } TypeMap;
 
+struct dso_info idso;
+
 void printTypeMap() {
 #if MDEBUG
-	printf("| CEID\t|\ttrg_addr1\t|\ttrg_addr2\t|\t.....\n");
+	printf("\n| CEID\t|\ttrg_addr1\t|\ttrg_addr2\t|\t.....\n");
 	printf("+-------+-----------------------+-----------------------+\n");
-	for (int i = 0; i < 10000; ++i) {
+	for (int i = 0; i < MAX_TYPEMAP; ++i) {
 		TargetAddress *current = typeIDArray[i];
 		if (current != NULL) {
 			printf("| %d\t|", i);
@@ -86,17 +91,41 @@ void printTypeMap() {
 #endif
 }
 
-void insertTypeMap(int tID, unsigned long long address, int vtable_offset) {
+void insertTypeMap(int tID, unsigned long long address, void *dso_handle) {
 	TargetAddress *newAddr = (TargetAddress *)malloc(sizeof(TargetAddress));
 	if (newAddr == NULL) {
 		perror("Failed to allocate memory for new target address");
 		exit(EXIT_FAILURE);
 	}
 
-	newAddr->address = address + vtable_offset;
+	newAddr->address = address;
+  newAddr->dso_handle = dso_handle;
 	newAddr->next = typeIDArray[tID];
 	typeIDArray[tID] = newAddr;
 }
+
+void removeEntriesByDSOHandle(void *dso_handle) {
+  for (int i = 0; i < MAX_TYPEMAP; ++i) {
+    TargetAddress *current = typeIDArray[i];
+    TargetAddress *prev = NULL;
+    while (current != NULL) {
+      if (current->dso_handle == dso_handle) {
+        if (prev == NULL) {
+          typeIDArray[i] = current->next;
+        } else {
+          prev->next = current->next;
+        }
+        free(current);
+        current = (prev == NULL) ? typeIDArray[i] : prev->next;
+      } else {
+        prev = current;
+        current = current->next;
+      }
+    }
+  }
+	printTypeMap();
+}
+
 
 inline int searchTypeMap(int tID, unsigned long long address) {
 	TargetAddress *current = typeIDArray[tID];
@@ -109,7 +138,12 @@ inline int searchTypeMap(int tID, unsigned long long address) {
 	return 0; // Address not found
 }
 
-unsigned long long process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bool overflow, bool wrap, bool last_read);
+unsigned long long process_trace_data(char* buf, 
+                                      unsigned long buf_ofst, 
+                                      unsigned long read_tgt, 
+                                      bool overflow, 
+                                      bool wrap, 
+                                      bool last_read);
 
 void
 read_topa(void)
@@ -215,6 +249,61 @@ void signal_handler(int n, siginfo_t *info, void *unused) {
 }
 
 void 
+load_dso() 
+{
+	char filename[260];
+
+	/* add extension for typemap */
+	snprintf(filename, sizeof(filename), "%s.tp", idso.filename);
+
+	/* open file sidecfi typemap */
+	FILE *file = fopen(filename, "r");
+	if (!file) {
+		printf("Failed to open typemap %s", filename);
+		return;
+	}
+
+	char line[512];
+	TypeMap typeinfo;
+
+#if MDEBUG
+	printf("\nTYPEMAP UPDATE: data read from file %s\n", filename);
+#endif
+	while (fgets(line, sizeof(line), file)) {
+		if (sscanf(line, "%255s %u %lx", typeinfo.symbol, &typeinfo.typeID, &typeinfo.address ) == 3) {
+
+			/* here you need to see if it's a vtable or not and add offset */
+			// sym_offset = 0x0;
+
+			typeinfo.address += idso.base_address;
+
+      insertTypeMap(typeinfo.typeID, typeinfo.address, idso.handle);
+		}
+	}
+	fclose(file);
+
+	printTypeMap();
+}
+
+void freeTypeMap() {
+	for (int i = 0; i < MAX_TYPEMAP; ++i) {
+		TargetAddress *current = typeIDArray[i];
+		while (current != NULL) {
+			TargetAddress *temp = current;
+			current = current->next;
+			free(temp);
+		}
+	}
+}
+
+void
+unload_dso (void)
+{
+	/* free mapping */
+	freeTypeMap();
+}
+
+void 
 pt_init(void)
 {
 	/* open device driver */
@@ -269,6 +358,14 @@ pt_init(void)
 		exit(EXIT_FAILURE);
 	}
 
+	/* get the bin base and init typemap */
+	idso.handle = 0;
+	if (ioctl(fd, PTW_GET_BASE, &idso) < 0) {
+		perror("PTW_GET_BASE");
+		exit(EXIT_FAILURE);
+	}
+	load_dso();
+
 	/* get rrp and calc topa_end */
 	topa_end = topa_size / buf_sz;
 
@@ -294,58 +391,11 @@ pt_destroy(void)
 	/* unmap etr */
 	munmap(topa, topa_size);
 
+	/* cleanup typemap */
+	unload_dso();
+
 	/* close device driver */
 	close(fd);
-}
-
-void 
-sidecfi_init (void) 
-{
-	int sym_offset;
-	/* open file sidecfi typemap */
-	FILE *file = fopen(ftmp, "r");
-	if (!file) {
-		perror("Failed to open typemap");
-		return;
-	}
-
-	char line[512];
-	TypeMap typeinfo;
-
-#if MDEBUG
-	printf("\nTYPEMAP UPDATE: data read from file %s\n", ftmp);
-#endif
-	while (fgets(line, sizeof(line), file)) {
-		if (sscanf(line, "%255s %u %lx", typeinfo.symbol, &typeinfo.typeID, &typeinfo.address ) == 3) {
-
-			/* here you need to see if it's a vtable or not and add offset */
-			sym_offset = 0x0;
-
-			insertTypeMap(typeinfo.typeID, typeinfo.address, sym_offset);
-		}
-	}
-	fclose(file);
-
-	printTypeMap();
-}
-
-void freeTypeMap() {
-	for (int i = 0; i < 10000; ++i) {
-		TargetAddress *current = typeIDArray[i];
-		while (current != NULL) {
-			TargetAddress *temp = current;
-			current = current->next;
-			free(temp);
-		}
-	}
-}
-
-
-void
-sidecfi_deinit (void)
-{
-	/* free mapping */
-	freeTypeMap();
 }
 
 void print_ptw_details(unsigned long long ptw_value) {
@@ -435,7 +485,7 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 							uint64_t op = ptw_value >> 62;
 							switch (op){
 								case 0x1:
-									/* Extracting the next 14 bits for typeID */
+									/* Extracting the next 13 bits for typeID */
 									typeID = (ptw_value >> 48) & 0x3FFF; 
 
 									/* Extracting the lower 48 bits for target_addr */
@@ -443,8 +493,10 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 
 									/* Printing the extracted details */
 #if MDEBUG
-									printf("\n[ptw] => opcode: 0x00 typeID: %d target_addr: 0x%012" PRIx64 "\n", 
-											typeID, (uint64_t)target_addr);
+									printf("\n[ptw] => opcode: 0x%01lx typeID: %d target_addr: 0x%012lx\n", 
+											op,
+											typeID, 
+											(uint64_t)target_addr);
 #endif
 
 									bool found = searchTypeMap(typeID, target_addr);
@@ -461,6 +513,28 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 #endif
 
 									break;
+								case 0x2: 
+#if MDEBUG
+                  printf("\n[ptw] => opcode: 0x%01lx dlopcode: 0x%01llx handle: 0x%016llx\n",
+                         op,
+                         (ptw_value >> 61) & 0x1,
+                         ptw_value & 0x1FFFFFFFFFFFFFFF);
+#endif
+                  if (((ptw_value >> 61) & 0x1) == 0x0) {
+                    /* get the bin base and init typemap */
+                    idso.handle = (void*)(ptw_value & 0x1FFFFFFFFFFFFFFF);
+                    if (ioctl(fd, PTW_GET_BASE, &idso) < 0) {
+                      perror("PTW_GET_BASE");
+                      exit(EXIT_FAILURE);
+                    }
+                    load_dso(); 
+                  } else if (((ptw_value >> 61) & 0x1) == 0x1){
+                    /* unload dso */
+                    void *dso_handle = (void*)(ptw_value & 0x1FFFFFFFFFFFFFFF);
+                    removeEntriesByDSOHandle(dso_handle);
+                  }
+
+                  break; 
 								default:
 									printf("Encountered invalid SideCFI opcode %lx!\n", op);
 							}
@@ -565,23 +639,6 @@ main(int argc, char *argv[])
 	struct sigaction sig;
 	sig.sa_sigaction = signal_handler;
 	sig.sa_flags = SA_SIGINFO;
-	char filename[100];
-
-	/* check for metadata of application */
-	if (argc < 2) {
-		printf("Usage: %s <application>\n", argv[0]);
-		return 1;
-	}
-	sprintf(filename, "sidecfi.%s.typemap", argv[1]);
-	if (!fileExists(filename)) {
-		printf("File %s does not exist,\n", filename);
-		return 1;
-	}
-	ftmp=strdup(filename);
-	if (ftmp == NULL) {
-		perror("Failed to allocate memory for typemap");
-		return 1;
-	}
 
 	/* set up signal handler */
 	sigaction(SIGUSR1, &sig, NULL);
@@ -589,9 +646,6 @@ main(int argc, char *argv[])
 	printf("This is the SideCFI monitor for application %s\n", argv[1]);
 	printf("Processing  : Concurrent\n");
 	printf("PT Decoder  : Custom\n");
-
-	/* initialize sidecfi */
-	sidecfi_init();
 
 	/* initialize for trace capturing */
 	pt_init();
@@ -601,9 +655,6 @@ main(int argc, char *argv[])
 
 	/* cleanup trace capturing */
 	pt_destroy();
-
-	/* cleanup sidecfi */
-	sidecfi_deinit();
 
 	return 0;
 }
