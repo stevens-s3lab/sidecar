@@ -320,13 +320,13 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 						/* Ext PTWRITE (0x12) */
 						/* NOTE: PTWRITE opcode REQUIRES masking (use 0x1F) */
 						if ((packet_opcode & pt_opm_ptw) == pt_ext_ptw){
-							/* Load 8 bytes of PTWRITE data (64-bit values only) */
-							unsigned long long ptw_value = *(unsigned long long*)(local_ptr + i + 1);
-							//printf("ptwrite %p\n", ptw_value);
+							/* Load 4 bytes of PTWRITE data (32-bit values only) */
+							uint32_t ptw_value = *(uint32_t*)(local_ptr + i + 1);
+							// printf("ptwrite %x\n", ptw_value);
 
 							/* Decode value and run SideStack logic */
-							uint64_t op = ptw_value >> 62;
-							uint64_t addr;
+							uint32_t op = ptw_value >> 30;
+							uint32_t addr;
 							switch (op){
 								case 0x3:
 									addr = (ptw_value << 2) >> 2;
@@ -338,7 +338,8 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 								default:
 									printf("Encountered invalid SideStack opcode %x!\n", op);
 							}
-							i+=9;
+
+							i+=4;
 
 							/* Handled overflow buffer - no need to go further */
 							if(overflow)
