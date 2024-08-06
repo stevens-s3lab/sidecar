@@ -70,6 +70,11 @@ struct ptw_conf {
 	unsigned char order;
 };
 
+struct dso_info {
+	void *handle;
+	unsigned long base_address;
+	char filename[256];
+};
 
 /* Configure tracing. Argument is structure pointer (read) */
 #define PTW_ENABLE _IO(PTW_IOC_MAGIC, PTW_IOC_SEQ(0))
@@ -78,6 +83,8 @@ struct ptw_conf {
 #define PTW_GET_TOPA_SZ _IOR(PTW_IOC_MAGIC, PTW_IOC_SEQ(3), unsigned int)
 #define PTW_GET_BUF_SZ _IOR(PTW_IOC_MAGIC, PTW_IOC_SEQ(4), int)
 #define PTW_GET_BUF_OFFSET _IOR(PTW_IOC_MAGIC, PTW_IOC_SEQ(5), unsigned int)
+#define PTW_SET_BASE _IOW(PTW_IOC_MAGIC, PTW_IOC_SEQ(6), struct dso_info)
+#define PTW_GET_BASE _IOR(PTW_IOC_MAGIC, PTW_IOC_SEQ(7), void *)
 
 
 

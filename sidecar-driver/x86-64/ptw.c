@@ -58,6 +58,18 @@
 #include <linux/time.h>
 #include <linux/ioctl.h>
 
+
+/* mapping for base addresses */
+struct dso_entry {
+	void *handle;
+	unsigned long base_address;
+	char filename[256];
+	struct list_head list;
+};
+
+static LIST_HEAD(dso_list);
+static DEFINE_MUTEX(dso_list_mutex);
+
 /* asan */
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 
@@ -73,6 +85,10 @@ MODULE_PARM_DESC(debug, "Enable run-time debug messages.");
 
 static int pause = 1;
 module_param(pause, int, 0);
+
+static int timestamps = 0;
+module_param(timestamps, int, 0);
+MODULE_PARM_DESC(debug, "Enable trace timestamp packets.");
 
 static bool fake_ptw = false;
 
@@ -318,6 +334,7 @@ topa_error:
 static void start_pt(struct ptw_dev *dev)
 {
 	u64 ctl, status;
+	u8 mtcfreq;
 
 	debugk("starting tracing on CPU %d (%d)\n",
 			dev->cpu, raw_smp_processor_id());
@@ -352,6 +369,21 @@ static void start_pt(struct ptw_dev *dev)
 	ctl &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA |
 		 CYC_EN | TRACE_EN | BRANCH_EN | CYC_EN | MTC_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
+	
+	/* if timestamps enabled */
+	if (timestamps) {
+		ctl |= TSC_EN; /* Enable timestamps */
+		ctl |= MTC_EN; /* Enable mtc */
+
+		/* mtcfreq from ctl */
+		mtcfreq = ctl & MTC_MASK;
+
+		/* print mtcfreq */
+		debugk("MTC enabled MTCfreq 0x%x ATMfreq 0x%x\n",
+				mtcfreq,
+				mtc_freq_mask);
+	}
+
 	ctl |= TRACE_EN; /* Enable tracing */
 	ctl |= TO_PA; /* TOPA is always on */
 	ctl |= PTW_EN; /* Enable PT_WRITE */
@@ -497,21 +529,6 @@ static int ptw_cpu_teardown(unsigned int cpu)
 	return 0;
 }
 
-#if 0
-/* Send SIGCONT signal to process with pid */
-static int continue_pid(pid_t pid)
-{
-	int r;
-	struct task_struct *task;
-
-	rcu_read_lock();
-	task = pid_task(find_vpid(pid), PIDTYPE_PID);
-	r = send_sig(SIGCONT, task, (int)(long)SEND_SIG_PRIV);
-	rcu_read_unlock();
-	return r;
-}
-#endif
-
 static int rdwr_pagedist(struct ptw_dev *dev)
 {
 	int avail_pages;
@@ -592,6 +609,82 @@ static long ptw_ioctl(struct file *filp, unsigned int cmd,
 
 		return put_user(dev->woff,
 				(unsigned int *)arg);
+	case PTW_SET_BASE: {
+	  	  struct dso_info info;
+		  struct dso_entry *entry;
+		  
+		  if (copy_from_user(&info, (struct dso_info *)arg, 
+					  sizeof(struct dso_info))) {
+			  return -EFAULT;
+		  }
+
+		  entry = kmalloc(sizeof(struct dso_entry), 
+				  GFP_KERNEL);
+		  if (!entry) {
+			  return -ENOMEM;
+		  }
+
+		  entry->handle = info.handle;
+		  entry->base_address = info.base_address;
+		  strncpy(entry->filename, info.filename, sizeof(entry->filename) - 1);
+		  entry->filename[sizeof(entry->filename) - 1] = '\0';
+
+		  mutex_lock(&dso_list_mutex);
+		  list_add(&entry->list, &dso_list);
+		  mutex_unlock(&dso_list_mutex);
+
+		  debugk("dso %s with handle %lx base set to 0x%lx\n", 
+				info.filename,
+				(unsigned long)info.handle,
+				info.base_address);
+
+		  return 0;
+		}
+	case PTW_GET_BASE: {
+		 struct dso_info user_info;
+		 void *handle; 
+		 int found;
+		 struct dso_entry *entry;
+  		 /* Initialize the info structure to be returned to the user */
+		 struct dso_info info = {0}; 
+
+		 /* Copy only the handle from the user space */
+		 if (copy_from_user(&user_info, (struct dso_info *)arg, sizeof(void*))) {
+			 return -EFAULT;
+		 }
+
+		 handle = user_info.handle;
+		 found = 0;
+
+		 mutex_lock(&dso_list_mutex);
+		 list_for_each_entry(entry, &dso_list, list) {
+			 if (entry->handle == handle) {
+				 info.handle = entry->handle;
+				 info.base_address = entry->base_address;
+				 strncpy(info.filename, entry->filename, sizeof(info.filename) - 1);
+				 info.filename[sizeof(info.filename) - 1] = '\0';
+				 found = 1;
+				 break;
+			 }
+		 }
+		 mutex_unlock(&dso_list_mutex);
+
+		 if (!found) {
+			 return -ENOENT;
+		 }
+
+		 /* Copy the dso_info structure with base_address and filename back to user space */
+		 if (copy_to_user((struct dso_info *)arg, &info, sizeof(struct dso_info))) {
+			 return -EFAULT;
+		 }
+
+		 debugk("dso %s with handle %p base retrieved: 0x%lx\n",
+				 info.filename,
+				 info.handle, 
+				 info.base_address);
+
+		 return 0;
+	   }
 	default:
 		return -ENOTTY;
 	}
