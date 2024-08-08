@@ -79,7 +79,7 @@ for decoupling the slow path checks only.
 ### SideStack
 
 To compile a file with SideStack enabled, use `install/bin/clang` and pass the
-flags `-flto -fsanitize=shadow-call-stack -fsanitize-sidestack`.
+flags `-fsanitize=shadow-call-stack -fsanitize-sidestack`.
 
 ### SideASan
 
