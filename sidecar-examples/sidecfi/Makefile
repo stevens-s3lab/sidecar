@@ -1,5 +1,5 @@
 CFLAGS+=-fvisibility=hidden -flto -fsanitize=cfi-icall -fsanitize-cfi-cross-dso -fsanitize-cfi-decouple
-#LDFLAGS+=-ldl
+LDFLAGS+=-fsanitize=cfi -flto -fvisibility=hidden
 
 CC=../../install/bin/clang
 
@@ -18,4 +18,4 @@ $(PROGS): %: %.o
 	$(CC) $(LDFLAGS) -o $@ $< 
 
 clean:
-	rm -f *.o $(PROGS) 
+	rm -f *.o *.typemap $(PROGS) 
