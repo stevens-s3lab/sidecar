@@ -39,4 +39,3 @@ void bar(void) {
 void different_signature(int x) {
     printf("This is different_signature with argument %d.\n", x);
 }
-i
