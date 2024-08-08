@@ -18,4 +18,4 @@ $(PROGS): %: %.o
 	$(CC) $(LDFLAGS) -o $@ $< 
 
 clean:
-	rm -f *.o *.typemap $(PROGS) 
+	rm -f *.o $(PROGS) 
