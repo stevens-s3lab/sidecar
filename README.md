@@ -88,7 +88,7 @@ flags `-fsanitize=address -mllvm -asan-decouple`.
 
 ## Example
 
-Example programs for SideCFI, SideStack, and SideASan can be found in the `sidecar-examples` directory. Entering the
+Example programs built with SideCFI, SideStack, and SideASan can be found in the `sidecar-examples` directory. Entering the
 respective directory and running `make` will compile the example with the respective SideCar
 defense enabled. e.g. for SideCFI:
 
