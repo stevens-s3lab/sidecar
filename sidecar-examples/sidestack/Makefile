@@ -1,5 +1,5 @@
 CFLAGS+=-fsanitize=shadow-call-stack -fsanitize-sidestack
-LDFLAGS+=-fsanitize=cfi -flto -fvisibility=hidden
+LDFLAGS+=-fsanitize=shadow-call-stack -fsanitize-sidestack
 
 CC=../../install/bin/clang
 
