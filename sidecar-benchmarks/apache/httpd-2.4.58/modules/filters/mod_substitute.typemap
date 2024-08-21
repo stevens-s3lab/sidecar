@@ -1,0 +1,14 @@
+create_substitute_dcfg 13655
+merge_substitute_dcfg 670
+set_pattern 11897
+set_max_line_length 11897
+register_hooks 957
+substitute_filter 8095
+do_pattmatch 14006
+create_substitute_dcfg 13655
+merge_substitute_dcfg 670
+set_pattern 11897
+set_max_line_length 11897
+register_hooks 957
+substitute_filter 8095
+do_pattmatch 14006

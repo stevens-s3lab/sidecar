@@ -1,0 +1,17 @@
+main 13688
+oom 14821
+setterm 7480
+usage 4518
+usage_repeated_arg 3395
+delete_url 6848
+find_directory 6848
+remove_directory 11746
+log_pid 13676
+list_urls 12579
+round_up 2040
+process_dir 14449
+delete_file 15824
+delete_parent 13097
+delete_entry 15824
+purge 15032
+printstats 5633

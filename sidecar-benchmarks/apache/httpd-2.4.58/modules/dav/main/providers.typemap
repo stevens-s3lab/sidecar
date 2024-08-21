@@ -1,0 +1,12 @@
+dav_register_provider 9242
+dav_lookup_provider 8731
+dav_options_provider_register 14192
+dav_get_options_providers 10573
+dav_resource_type_provider_register 5987
+dav_get_resource_type_providers 8220
+dav_register_provider 9242
+dav_lookup_provider 8731
+dav_options_provider_register 14192
+dav_get_options_providers 10573
+dav_resource_type_provider_register 5987
+dav_get_resource_type_providers 8220

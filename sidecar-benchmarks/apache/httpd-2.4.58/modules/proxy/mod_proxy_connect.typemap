@@ -1,0 +1,14 @@
+create_config 3143
+merge_config 670
+set_allowed_ports 11897
+ap_proxy_connect_register_hook 957
+proxy_connect_handler 10710
+allowed_port 9749
+proxy_connect_canon 12000
+create_config 3143
+merge_config 670
+set_allowed_ports 11897
+ap_proxy_connect_register_hook 957
+proxy_connect_handler 10710
+allowed_port 9749
+proxy_connect_canon 12000

@@ -1,0 +1,12 @@
+create_authn_dbm_dir_config 13655
+register_hooks 957
+check_dbm_pw 15865
+fetch_dbm_value 8343
+get_dbm_realm_hash 12857
+opt_retr 6386
+create_authn_dbm_dir_config 13655
+register_hooks 957
+check_dbm_pw 15865
+fetch_dbm_value 8343
+get_dbm_realm_hash 12857
+opt_retr 6386

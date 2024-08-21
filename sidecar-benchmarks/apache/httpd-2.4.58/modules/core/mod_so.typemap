@@ -1,0 +1,8 @@
+so_sconf_create 3143
+load_module 8960
+dso_load 3997
+unload_module 11612
+load_file 11897
+register_hooks 957
+ap_find_loaded_module_symbol 1552
+dump_loaded_modules 13337
