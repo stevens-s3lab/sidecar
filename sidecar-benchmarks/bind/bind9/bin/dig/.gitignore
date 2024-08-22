@@ -1,0 +1,7 @@
+/dig
+/host
+/nslookup
+.libs
+dig-symtbl.c
+host-symtbl.c
+nslookup-symtbl.c

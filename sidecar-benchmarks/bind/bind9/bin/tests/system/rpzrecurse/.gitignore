@@ -1,0 +1,10 @@
+/ns1/named.conf
+/ns2/named.conf.header
+/ns2/named.conf
+/ns3/named.conf
+/ns3/named2.conf
+/ns4/named.conf
+/ans5/ans.pid
+/dnsrps.conf
+/dnsrpzd.conf
+session.key

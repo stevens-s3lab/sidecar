@@ -1,0 +1,3 @@
+# Uninstrumented libraries
+called_from_lib:libfstrm.so
+race:dummyrpz

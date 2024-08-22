@@ -1,0 +1,12 @@
+dnssec-cds
+dnssec-dsfromkey
+dnssec-keyfromlabel
+dnssec-keygen
+dnssec-makekeyset
+dnssec-revoke
+dnssec-settime
+dnssec-signkey
+dnssec-signzone
+dnssec-verify
+dnssec-importkey
+.libs

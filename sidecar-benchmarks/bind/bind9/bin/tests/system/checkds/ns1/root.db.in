@@ -1,0 +1,68 @@
+; Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+;
+; SPDX-License-Identifier: MPL-2.0
+;
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0.  If a copy of the MPL was not distributed with this
+; file, you can obtain one at https://mozilla.org/MPL/2.0/.
+;
+; See the COPYRIGHT file distributed with this work for additional
+; information regarding copyright ownership.
+
+$TTL 300
+.			IN SOA	gson.nominum.com. a.root.servers.nil. (
+				2000042100	; serial
+				600		; refresh
+				600		; retry
+				1200		; expire
+				600		; minimum
+				)
+.			NS	a.root-servers.nil.
+a.root-servers.nil.	A	10.53.0.1
+
+ns2.			NS	ns2.ns2.
+ns2.ns2.		A	10.53.0.2
+
+ns2-4.			NS	ns2.ns2-4.
+ns2-4.			NS	ns4.ns2-4.
+ns2.ns2-4.		A	10.53.0.2
+ns4.ns2-4.		A	10.53.0.4
+
+ns2-4-5.		NS	ns2.ns2-4-5.
+ns2-4-5.		NS	ns4.ns2-4-5.
+ns2-4-5.		NS	ns5.ns2-4-5.
+ns2.ns2-4-5.		A	10.53.0.2
+ns4.ns2-4-5.		A	10.53.0.4
+ns5.ns2-4-5.		A	10.53.0.5
+
+ns2-4-6.		NS	ns2.ns2-4-6.
+ns2-4-6.		NS	ns4.ns2-4-6.
+ns2-4-6.		NS	ns6.ns2-4-6.
+ns2.ns2-4-6.		A	10.53.0.2
+ns4.ns2-4-6.		A	10.53.0.4
+ns6.ns2-4-6.		A	10.53.0.6
+
+ns2-5-7.		NS	ns2.ns2-5-7.
+ns2-5-7.		NS	ns5.ns2-5-7.
+ns2-5-7.		NS	ns7.ns2-5-7.
+ns2.ns2-5-7.		A	10.53.0.2
+ns5.ns2-5-7.		A	10.53.0.5
+ns7.ns2-5-7.		A	10.53.0.7
+
+ns5.			NS	ns5.ns5.
+ns5.ns5.		A	10.53.0.5
+
+ns5-6-7.		NS	ns5.ns5-6-7.
+ns5-6-7.		NS	ns6.ns5-6-7.
+ns5-6-7.		NS	ns7.ns5-6-7.
+ns5.ns5-6-7.		A	10.53.0.5
+ns6.ns5-6-7.		A	10.53.0.6
+ns7.ns5-6-7.		A	10.53.0.7
+
+ns5-7.			NS	ns5.ns5-7.
+ns5-7.			NS	ns7.ns5-7.
+ns5.ns5-7.		A	10.53.0.5
+ns7.ns5-7.		A	10.53.0.7
+
+ns6.			NS	ns6.ns6.
+ns6.ns6.		A	10.53.0.6

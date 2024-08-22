@@ -1,0 +1,58 @@
+<!--
+Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+
+SPDX-License-Identifier: MPL-2.0
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0.  If a copy of the MPL was not distributed with this
+file, you can obtain one at https://mozilla.org/MPL/2.0/.
+
+See the COPYRIGHT file distributed with this work for additional
+information regarding copyright ownership.
+-->
+
+Changes I made last week to the task code simplified the task shutdown
+and termination model.  Here's how things now work:
+
+Task termination occurs when:
+
+	The task has no references
+
+	The task has an empty event queue
+
+Notes from the task/event discussion led by Bob Halley on 13 March 2000:
+
+A task is an event queue.
+
+     (task) --V
+            (event)-->(event)-->(event)
+
+      (runnable queue)--V
+                      (task)-->(task)-->(task)
+
+Normally only one task manager in an application.
+
+Task becomes runnable if it has a non-empty event queue.
+
+One or more worker threads run tasks.
+
+Event routines should be relatively short.
+
+Only one runnable queue that all workers share.
+
+Events for a task are always posted serially.  Multiple worker threads
+will not be working on multiple events for one task at the same time.
+
+isc_event_send, posting an event, can't fail.  It just adds an event
+to the task queue.
+
+Event action (callback) rules:
+  * no locks held on your behald when entering a callback.
+  * not allowed to block, except when acquiring a lock.
+  * not allowed to hold a lock when exiting the callback.
+
+
+TIMERS?
+
+OMAPI -- need taskmgr to omapi_lib_init
+  -- one task per client connection

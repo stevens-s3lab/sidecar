@@ -1,0 +1,17 @@
+; Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+;
+; SPDX-License-Identifier: MPL-2.0
+;
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0.  If a copy of the MPL was not distributed with this
+; file, you can obtain one at https://mozilla.org/MPL/2.0/.
+;
+; See the COPYRIGHT file distributed with this work for additional
+; information regarding copyright ownership.
+
+$TTL 28800
+rpz.                                    IN SOA      rpz. hostmaster.rpz. 6 10800 3600 2419200 900
+rpz.                                    IN NS       .
+a-only.example                          CNAME    *.
+no-a-no-aaaa.example                    CNAME    *.
+a-plus-aaaa.example                     CNAME    *.

@@ -1,0 +1,20 @@
+$TTL 0	; 0 seconds
+.			IN SOA	. . (
+				8          ; serial
+				0          ; refresh (0 seconds)
+				0          ; retry (0 seconds)
+				0          ; expire (0 seconds)
+				0          ; minimum (0 seconds)
+				)
+			KEYDATA	20240413000441 20240411231159 19700101000000 257 3 8 (
+				AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO
+				iW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN
+				7SWXgnLh4+B5xQlNVz8Og8kvArMtNROxVQuCaSnIDdD5
+				LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8
+				efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7
+				pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLY
+				A4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws
+				9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU=
+				) ; KSK; alg = RSASHA256; key id = 20326
+				; next refresh: Sat, 13 Apr 2024 00:04:41 GMT
+				; trusted since: Thu, 11 Apr 2024 23:11:59 GMT

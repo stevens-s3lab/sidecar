@@ -1,0 +1,81 @@
+BasedOnStyle: LLVM
+IndentWidth: 8
+UseTab: Always
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass:      false
+  AfterEnum:       false
+  AfterStruct:     false
+  AfterUnion:      false
+  AfterControlStatement: MultiLine
+  AfterFunction:   false # should also be MultiLine, but not yet supported
+  AfterExternBlock: false
+  BeforeElse:      false
+  BeforeWhile:     false
+  IndentBraces:    false
+  SplitEmptyFunction: true
+AllowShortIfStatementsOnASingleLine: false
+IndentCaseLabels: false
+AlwaysBreakAfterReturnType: All
+Cpp11BracedListStyle: false
+ColumnLimit: 80
+AlignAfterOpenBracket: Align
+AlignConsecutiveBitFields: true
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: true
+AlignTrailingComments: true
+AllowAllArgumentsOnNextLine: true
+AlwaysBreakBeforeMultilineStrings: false
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+AlignEscapedNewlines: Left
+DerivePointerAlignment: false
+PointerAlignment: Right
+PointerBindsToType: false
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^<(urcu\.h|urcu/urcu-|urcu-)'
+    Priority:        2
+  - Regex:           '^<urcu/'
+    Priority:        3
+  - Regex:           '^<isc/'
+    Priority:        5
+  - Regex:           '^<(pk11|pkcs11)/'
+    Priority:        10
+  - Regex:           '^<dns/'
+    Priority:        15
+  - Regex:           '^<dst/'
+    Priority:        20
+  - Regex:           '^<isccc/'
+    Priority:        25
+  - Regex:           '^<isccfg/'
+    Priority:        30
+  - Regex:           '^<ns/'
+    Priority:        35
+  - Regex:           '^<irs/'
+    Priority:        40
+  - Regex:           '^<(dig|named|rndc|confgen|dlz)/'
+    Priority:        50
+  - Regex:           '^<dlz_'
+    Priority:        55
+  - Regex:           '^".*"'
+    Priority:        99
+  - Regex:           '^<tests/'
+    Priority:        100
+  - Regex:           '<openssl/'
+    Priority:        4
+  - Regex:           '<(mysql|protobuf-c)/'
+    Priority:        4
+  - Regex:           '.*'
+    Priority:        0
+IndentExternBlock: NoIndent
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+PenaltyBreakAssignment: 30
+PenaltyBreakComment: 10
+PenaltyBreakFirstLessLess: 0
+PenaltyBreakString: 80
+PenaltyExcessCharacter: 100
+Standard: Cpp11
+ContinuationIndentWidth: 8
+ForEachMacros: [ 'cds_lfs_for_each', 'cds_lfs_for_each_safe', 'cds_list_for_each_entry_safe', 'ISC_LIST_FOREACH', 'ISC_LIST_FOREACH_SAFE', 'ISC_LIST_FOREACH_REV', 'ISC_LIST_FOREACH_REV_SAFE' ]
