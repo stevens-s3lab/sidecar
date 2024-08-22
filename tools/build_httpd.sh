@@ -228,6 +228,7 @@ case $ACTION in
         build_aprutil
         ;;
     pcre)
+        setup_env
 	build_pcre
 	;;
     app)
@@ -249,7 +250,7 @@ case $ACTION in
 	build_aprutil
         #build_pcre
         build_app
-        run_server
+        #run_server
         ;;
     *)
         echo "Invalid action: $ACTION"
