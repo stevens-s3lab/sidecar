@@ -1,2 +1,0 @@
-/usr/bin/ar qc lib/libevent_pthreads.a CMakeFiles/event_pthreads_static.dir/evthread_pthread.c.o
-/usr/bin/ranlib lib/libevent_pthreads.a
