@@ -1,0 +1,14 @@
+#libevent pkg-config source file
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libevent_extra
+Description: libevent_extra
+Version: @VERSION@
+Requires: libevent_core
+Libs: -L${libdir} -levent_extra@CMAKE_DEBUG_POSTFIX@
+Libs.private: @LIBS@
+Cflags: -I${includedir}

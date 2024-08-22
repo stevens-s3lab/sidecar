@@ -1,0 +1,14 @@
+#libevent pkg-config source file
+
+prefix=/home/kleftog/software/libevent/safestack
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libevent_pthreads
+Description: libevent_pthreads adds pthreads-based threading support to libevent
+Version: 2.2.1
+Requires: libevent_core
+Libs: -L${libdir} -levent_pthreads
+Libs.private: -lpthread 
+Cflags: -I${includedir}
