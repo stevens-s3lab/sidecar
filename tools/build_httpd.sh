@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <lto | cfi | sidecfi | sidexcfi> <envsetup | ssl | apr | expat | aprutil | pcre | app | run | all>"
+    echo "Usage: $0 <lto | cfi | sidecfi | sidexcfi> <envsetup | ssl | apr | expat | aprutil | pcre | app | run | all | stop>"
     exit 1
 fi
 
@@ -110,7 +110,7 @@ build_aprutil() {
 	cd $BUILD_DIR/apache/${MODE}/apr-util-1.6.3
 	make distclean
 	rm *.typemap
-	$SRC_DIR/apr-util-1.6.3/configure --prefix=$APR_DIR --with-apr=$APR_DIR --with-expat=$EXPAT_DIR 
+	$SRC_DIR/apr-util-1.6.3/configure --prefix=$APR_DIR --with-apr=$APR_DIR #--with-expat=$EXPAT_DIR 
 	make -j24
 	make install -j24
 }
@@ -173,7 +173,7 @@ EOL
 }
 
 build_app() {
-	export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib:$EXPAT_DIR/lib:$PCRE_DIR/lib
+	export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
 
 	mkdir -p $BUILD_DIR/apache/${MODE}/httpd-2.4.58
 	cd $BUILD_DIR/apache/${MODE}/httpd-2.4.58
@@ -182,8 +182,8 @@ build_app() {
 	$SRC_DIR/httpd-2.4.58/configure --prefix=$APP_DIR \
 		--with-apr=$APR_DIR/bin/apr-1-config  \
 		--with-apr-util=$APR_DIR/bin/apu-1-config \
-		--enable-ssl --with-ssl=$OPENSSL_DIR \
-		--with-pcre=$PCRE_DIR --disable-brotli
+		--enable-ssl --with-ssl=$OPENSSL_DIR #\
+		#--with-pcre=$PCRE_DIR #--disable-brotli
 	make -j24
 	make install -j24
 
@@ -197,9 +197,13 @@ build_app() {
 
 # Function to run the server
 run_server() {
-    export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib:$EXPAT_DIR/lib:$PCRE_DIR/lib
+    export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
 
     taskset -c 0 $APP_DIR/bin/httpd -k start 
+}
+
+stop_server() {
+   $APP_DIR/bin/httpd -k stop
 }
 
 # Execute the action
@@ -234,13 +238,16 @@ case $ACTION in
         setup_env
         run_server
         ;;
+    stop)
+	stop_server
+	;;
     all)
         setup_env
 	build_ssl
         build_apr
-	build_expat
+	#build_expat
 	build_aprutil
-        build_pcre
+        #build_pcre
         build_app
         run_server
         ;;
