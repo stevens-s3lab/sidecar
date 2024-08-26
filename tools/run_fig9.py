@@ -250,8 +250,6 @@ def parse_results(run_dir):
     spec_data = parse_spec(spec_file)
 
     num_columns = max(len(values) for _, values in spec_data)
-    geomean_values = [[] for _ in range(num_columns // 2)]
-    geomean_asterisk_values = [[] for _ in range(num_columns // 2)]
 
     with open(PARSED_DIR / PARSED_FILES["spec"], "w") as spec_out:
         for benchmark, values in spec_data:
@@ -265,9 +263,6 @@ def parse_results(run_dir):
                     value_numeric = float(
                         values[i]
                     )  # Convert the percentage value to float
-                    geomean_values[i // 2].append(value_numeric)
-                    if benchmark not in ["perlbench_s", "omnetpp_s", "deepsjeng_s"]:
-                        geomean_asterisk_values[i // 2].append(value_numeric)
                 except (IndexError, ValueError):
                     # Skip if the index is out of range or conversion fails
                     continue
