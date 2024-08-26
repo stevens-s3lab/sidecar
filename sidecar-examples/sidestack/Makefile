@@ -1,7 +1,7 @@
 CFLAGS+=-fsanitize=shadow-call-stack -fsanitize-sidestack
 LDFLAGS+=-fsanitize=shadow-call-stack -fsanitize-sidestack
 
-CC=../../install/bin/clang
+CC=../../install/llvm-sidecar/bin/clang
 
 CFLAGS+=-O1 -Wall
 

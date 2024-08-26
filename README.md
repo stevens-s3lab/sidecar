@@ -51,7 +51,7 @@ sudo insmod cs_driver.ko
 To build and install the SideCar LLVM toolchain, run the following commands:
 
 ```bash
-./tools/install.sh llvm
+./tools/install.sh llvm-sidecar
 ```
 
 This will create a `build` directory in the root of the repository for build files and
@@ -71,19 +71,19 @@ make
 
 ### SideCFI
 
-To compile a file with SideCFI enabled, use `install/bin/clang` and pass the
+To compile a file with SideCFI enabled, use `install/llvm-sidecar/bin/clang` and pass the
 flags `-flto -fsanitize=cfi-icall,cfi-vcall -fsanitize-cfi-cross-dso`
 and `-fsanitize-cfi-decouple` for decoupling all CFI checks or `-fsanitize-cfi-slowpath-decouple`
 for decoupling the slow path checks only.
 
 ### SideStack
 
-To compile a file with SideStack enabled, use `install/bin/clang` and pass the
+To compile a file with SideStack enabled, use `install/llvm-sidecar/bin/clang` and pass the
 flags `-fsanitize=shadow-call-stack -fsanitize-sidestack`.
 
 ### SideASan
 
-To compile a file with SideASan enabled, use `install/bin/clang` and pass the
+To compile a file with SideASan enabled, use `install/llvm-sidecar/bin/clang` and pass the
 flags `-fsanitize=address -mllvm -asan-decouple`.
 
 ## Example

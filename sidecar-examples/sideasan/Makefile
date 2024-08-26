@@ -2,7 +2,7 @@ CFLAGS+=-fsanitize=address
 LDFLAGS+=-fsanitize=address
 CFLAGS+=-mllvm -asan-decouple
 
-CC=../../install/bin/clang
+CC=../../install/llvm-sidecar/bin/clang
 
 CFLAGS+=-O1 -Wall
 

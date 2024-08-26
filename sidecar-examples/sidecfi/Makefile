@@ -1,7 +1,7 @@
 CFLAGS+=-fvisibility=hidden -flto -fsanitize=cfi-icall -fsanitize-cfi-cross-dso -fsanitize-cfi-decouple
 LDFLAGS+=-fsanitize=cfi -flto -fvisibility=hidden
 
-CC=../../install/bin/clang
+CC=../../install/llvm-sidecar/bin/clang
 
 CFLAGS+=-O1 -Wall
 
