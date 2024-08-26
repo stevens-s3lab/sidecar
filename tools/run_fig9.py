@@ -328,7 +328,7 @@ def parse_results(run_dir):
         geomean_str = '"geomean",'
         geomean_str += (
             ", ".join(
-                [f"{v:.2f}" if v is not None else "0" for v in valid_geomean_values]
+                [f"{v:.2f}" if v is not None else "1" for v in valid_geomean_values]
             )
             + "\n"
         )
