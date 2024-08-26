@@ -30,4 +30,35 @@ for build_type in build_types:
             print(f"An error occurred while building {script_name} with {build_type}.")
             print(e.stderr.decode("utf-8"))
 
-print("All builds completed.")
+print("App builds completed.")
+
+print("Spec2017 builds TBA.")
+
+# Paths to wrk and memtier_benchmark
+wrk_path = "../sidecar-benchmarks/wrk"
+memtier_path = "../sidecar-benchmarks/memtier_benchmark"
+
+# Build directory
+build_dir = "../build"
+
+install_commands = [
+    f"cd {wrk_path} && make && cp wrk {build_dir}/wrk",
+    f"cd {memtier_path} && make && cp memtier_benchmark {build_dir}/memtier_benchmark",
+]
+
+for command in install_commands:
+    try:
+        print(f"Executing: {command}")
+        subprocess.run(
+            command,
+            shell=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        print(f"Installation completed: {command}\n")
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred during installation.")
+        print(e.stderr.decode("utf-8"))
+
+print("Testing-tool builds completed.")
