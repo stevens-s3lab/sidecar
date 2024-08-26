@@ -52,6 +52,9 @@ SIDEASAN_FLAGS="-mllvm -asan-decouple"
 setup_env() {
     export CC=$CC
     export CXX=$CXX
+    export AR=${LLVM_BIN}/llvm-ar
+    export RANLIB=${LLVM_BIN}/llvm-ranlib
+    export NM=${LLVM_BIN}/llvm-nm
     
     case $MODE in
         lto)
@@ -79,6 +82,9 @@ setup_env() {
             export CXXFLAGS="$LTO_FLAGS $ASAN_FLAGS"
 	    export CC=$CLEAN_CC
 	    export CXX=$CLEAN_CXX
+	    export AR=${CLEAN_BIN}/llvm-ar
+	    export RANLIB=${CLEAN_BIN}/llvm-ranlib
+	    export NM=${CLEAN_BIN}/llvm-nm
             ;;
         sideasan)
             export CFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
@@ -89,10 +95,7 @@ setup_env() {
             exit 1
             ;;
     esac
-    
-    export AR=${LLVM_BIN}/llvm-ar
-    export RANLIB=${LLVM_BIN}/llvm-ranlib
-    export NM=${LLVM_BIN}/llvm-nm
+
     export LDFLAGS='-fuse-ld=gold'
 }
 
