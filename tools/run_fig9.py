@@ -272,32 +272,6 @@ def parse_results(run_dir):
                     # Skip if the index is out of range or conversion fails
                     continue
 
-        # Calculate and print the *geomean (excluding specific benchmarks)
-        geomean_asterisk_str = (
-            "*geomean,"
-            + ",".join(
-                [
-                    f"{calculate_geomean(geomean_asterisk_values[i]):.2f},0.00"
-                    for i in range(len(geomean_asterisk_values))
-                ]
-            )
-            + "\n"
-        )
-        spec_out.write(geomean_asterisk_str)
-
-        # Calculate and print the geomean (including all benchmarks)
-        geomean_str = (
-            "geomean,"
-            + ",".join(
-                [
-                    f"{calculate_geomean(geomean_values[i]):.2f},0.00"
-                    for i in range(len(geomean_values))
-                ]
-            )
-            + "\n"
-        )
-        spec_out.write(geomean_str)
-
     # Parse the apps CSVs and calculate the geomean
     apps_data = parse_apps(run_dir)
 
@@ -328,7 +302,7 @@ def parse_results(run_dir):
         geomean_str = '"geomean",'
         geomean_str += (
             ", ".join(
-                [f"{v:.2f}" if v is not None else "1" for v in valid_geomean_values]
+                [f"{v:.2f}" if v is not None else "0" for v in valid_geomean_values]
             )
             + "\n"
         )
