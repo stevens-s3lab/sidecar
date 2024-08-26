@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <lto | cfi | sidecfi | sidexcfi> <envsetup | ssl | apr | expat | aprutil | pcre | app | run | all | stop>"
+    echo "Usage: $0 <lto | cfi | sidecfi | safestack | sidestack | asan | sideasan> <envsetup | ssl | apr | expat | aprutil | pcre | app | run | all | stop>"
     exit 1
 fi
 
@@ -18,6 +18,10 @@ SRC_DIR="${ROOT_DIR}/sidecar-benchmarks/apache"
 LLVM_BIN="${INSTALL_DIR}/bin"
 CC="${LLVM_BIN}/clang"
 CXX="${LLVM_BIN}/clang++"
+CLEAN_DIR="${ROOT_DIR}/install/llvm-orig"
+CLEAN_BIN="${CLEAN_DIR}/bin"
+CLEAN_CC="${CLEAN_BIN}/clang"
+CLEAN_CXX="${CLEAN_BIN}/clang++"
 
 # Installation folders
 APP_DIR="/usr/local/httpd-${MODE}"
@@ -38,13 +42,16 @@ APP_HTDOCS="${APP_DIR}/htdocs"
 # Flags
 LTO_FLAGS="-fvisibility=default -flto"
 CFI_FLAGS="-fsanitize=cfi-vcall,cfi-icall -fsanitize-cfi-cross-dso"
-SIDE_FLAGS="-fsanitize-cfi-decouple"
-SIDEX_FLAGS="-fsanitize-cfi-slowpath-decouple"
+SIDECFI_FLAGS="-fsanitize-cfi-decouple"
+SCS_FLAGS="-fsanitize=shadow-call-stack"
+SIDESTK_FLAGS="-fsanitize-sidestack"
+ASAN_FLAGS="-fsanitize=address -fsanitize-recover=all"
+SIDEASAN_FLAGS="-mllvm -asan-decouple"
 
 # Function for setting up environment variables
 setup_env() {
     export CC=$CC
-    export CXX=$CCX
+    export CXX=$CXX
     
     case $MODE in
         lto)
@@ -56,12 +63,26 @@ setup_env() {
             export CXXFLAGS="$LTO_FLAGS $CFI_FLAGS"
             ;;
         sidecfi)
-            export CFLAGS="$LTO_FLAGS $CFI_FLAGS $SIDE_FLAGS"
-            export CXXFLAGS="$LTO_FLAGS $CFI_FLAGS $SIDE_FLAGS"
+            export CFLAGS="$LTO_FLAGS $CFI_FLAGS $SIDECFI_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS $CFI_FLAGS $SIDECFI_FLAGS"
             ;;
-        sidexcfi)
-            export CFLAGS="$LTO_FLAGS $CFI_FLAGS $SIDEX_FLAGS"
-            export CXXFLAGS="$LTO_FLAGS $CFI_FLAGS $SIDEX_FLAGS"
+        safestack)
+            export CFLAGS="$LTO_FLAGS $SCS_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS $SCS_FLAGS"
+            ;;
+        sidestack)
+            export CFLAGS="$LTO_FLAGS $SCS_FLAGS $SIDESTK_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS $SCS_FLAGS $SIDESTK_FLAGS"
+            ;;
+        asan)
+            export CFLAGS="$LTO_FLAGS $ASAN_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS $ASAN_FLAGS"
+	    export CC=$CLEAN_CC
+	    export CXX=$CLEAN_CXX
+            ;;
+        sideasan)
+            export CFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
             ;;
         *)
             echo "Invalid mode: $MODE"
