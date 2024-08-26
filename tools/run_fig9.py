@@ -1,17 +1,28 @@
+import csv
 import os
-import random
 import subprocess
 from pathlib import Path
 
 import numpy as np
 
 # Constants for directory structure
-BASE_DIR = Path("../sidecar-results")  # Adjusted to create sidecar-results one level up
+BASE_DIR = Path("../sidecar-results")
 RAW_DIR = BASE_DIR / "raw"
 PARSED_DIR = BASE_DIR / "parsed"
 PLOTS_DIR = BASE_DIR / "plots"
 
-# Constants for filenames
+# Spec CSV file modes
+SPEC_MODES = [
+    "spec17.lto.csv",
+    "spec17.cfi.csv",
+    "spec17.fineibt.csv",
+    "spec17.sidecfi.csv",
+    "spec17.asan.csv",
+    "spec17.sideasan.csv",
+    "spec17.scs.csv",
+    "spec17.sidestack.csv",
+]
+
 RAW_FILES = [
     "spec17.results.csv",
     "httpd.csv",
@@ -39,7 +50,7 @@ def setup_directories():
     os.makedirs(next_run_dir)
 
     # Touch all the necessary raw files
-    for file_name in RAW_FILES:
+    for file_name in RAW_FILES + SPEC_MODES:
         (next_run_dir / file_name).touch()
 
     return next_run_dir
@@ -51,10 +62,6 @@ def execute_spec17(file_path):
     result = subprocess.run(
         ["bash", "run_spec17.sh"], stdout=subprocess.PIPE, text=True
     )
-
-    # Write the output of the bash script to the file
-    with open(file_path, "w") as f:
-        f.write(result.stdout)
 
 
 def execute_httpd(file_path):
@@ -122,111 +129,156 @@ def run_placeholder_tasks(run_dir):
     execute_chromium(run_dir / "chromium.csv")
 
 
-def calculate_geomean(values):
-    # Filter out values greater than 100% before calculating the geometric mean
-    filtered_values = [v for v in values if v <= 100]
-    if not filtered_values:
-        return 0.0
-    return np.exp(np.mean(np.log(filtered_values)))
+def parse_spec_mode(file_path):
+    spec_data = {}
+    with open(file_path, "r") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            benchmark = row[0].split(".")[1]  # Extract the benchmark name after the dot
+
+            # Check that benchmark is not "exchange2_s"
+            if benchmark == "exchange2_s":
+                continue
+
+            if benchmark not in spec_data:
+                spec_data[benchmark] = []
+            spec_data[benchmark].append(float(row[2]))  # Est. Base Ratio (3rd index)
+
+    avg_stddev_data = {}
+    for benchmark, results in spec_data.items():
+        avg = round(np.mean(results), 2)  # Round average to two decimal places
+        stddev = round(
+            np.std(results), 2
+        )  # Round standard deviation to two decimal places
+        avg_stddev_data[benchmark] = (avg, stddev)
+
+    return avg_stddev_data
+
+
+def calculate_performance_over_lto(lto_data, mode_data):
+    performance_data = {}
+    for benchmark, (lto_avg, lto_std) in lto_data.items():
+        if benchmark in mode_data:
+            mode_avg, mode_std = mode_data[benchmark]
+            performance = (lto_avg / mode_avg) * 100
+            performance_data[benchmark] = (round(performance, 2), mode_std)
+        else:
+            performance_data[benchmark] = (-1.0, 0.0)
+    return performance_data
 
 
 def calculate_geomean(values):
-    # Filter out values greater than 100% before calculating the geometric mean
     filtered_values = [v for v in values if 0 < v <= 100]
     if not filtered_values:
         return 0.0
     return np.exp(np.mean(np.log(filtered_values)))
 
 
-def parse_spec(spec_file):
-    spec_data = []
-    with open(spec_file, "r") as f:
-        # Process the output as CSV
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) > 1:
-                benchmark = parts[0]
-                values = list(
-                    map(float, parts[1:])
-                )  # Convert the rest of the values to float
-                spec_data.append((benchmark, values))
+def parse_spec_results(run_dir):
+    mode_data = {}
 
-    return spec_data
+    for mode in SPEC_MODES:
+        file_path = run_dir / mode
+        mode_name = mode.split(".")[1]  # Extracting the mode name from the filename
+        mode_data[mode_name] = parse_spec_mode(file_path)
 
+    lto_data = mode_data.pop("lto")  # LTO is the baseline
 
-def parse_httpd(httpd_file):
-    values = []
-    with open(httpd_file, "r") as f:
-        for line in f:
-            # split each line by the comma and extract the second value (throughput)
-            parts = line.strip().split(",")
-            if len(parts) == 2:
-                mode, value = parts
-                # convert the value to a float and add it to the list
-                values.append(float(value))
+    final_results = {}
 
-    # return the list of throughput values
-    return values
+    for mode, data in mode_data.items():
+        final_results[mode] = calculate_performance_over_lto(lto_data, data)
+
+        # if mode == "scs" exclude the ones that didn't run
+        if mode == "scs":
+            final_results[mode]["perlbench_s"] = (-1.0, 0.0)
+            final_results[mode]["omnetpp_s"] = (-1.0, 0.0)
+            final_results[mode]["leela_s"] = (-1.0, 0.0)
+
+    return final_results
 
 
-def parse_lighttpd(lighttpd_file):
-    values = []
-    with open(lighttpd_file, "r") as f:
-        for line in f:
-            # split each line by the comma and extract the second value (throughput)
-            parts = line.strip().split(",")
-            if len(parts) == 2:
-                mode, value = parts
-                # convert the value to a float and add it to the list
-                values.append(float(value))
+def save_parsed_spec_results(final_results):
+    with open(PARSED_DIR / PARSED_FILES["spec"], "w", newline="") as f:
+        writer = csv.writer(f)
 
-    # return the list of throughput values
-    return values
+        # Define the correct order of benchmarks
+        benchmark_order = [
+            "perlbench_s",
+            "gcc_s",
+            "mcf_s",
+            "omnetpp_s",
+            "xalancbmk_s",
+            "x264_s",
+            "deepsjeng_s",
+            "leela_s",
+            "xz_s",
+        ]
 
+        # Define the order of modes (excluding LTO)
+        mode_order = [
+            "cfi",
+            "fineibt",
+            "sidecfi",
+            "scs",
+            "sidestack",
+            "asan",
+            "sideasan",
+        ]
 
-def parse_memcached(memcached_file):
-    values = []
-    with open(memcached_file, "r") as f:
-        for line in f:
-            # split each line by the comma and extract the second value (throughput)
-            parts = line.strip().split(",")
-            if len(parts) == 2:
-                mode, value = parts
-                # convert the value to a float and add it to the list
-                values.append(float(value))
+        # Write rows for each benchmark in the specified order
+        for benchmark in benchmark_order:
+            if (
+                benchmark in final_results["cfi"]
+            ):  # Ensure the benchmark exists in results
+                row = [benchmark]
+                for (
+                    mode
+                ) in mode_order:  # Iterate through the modes in the specified order
+                    if final_results[mode][benchmark][0] is not None:
+                        row.extend(final_results[mode][benchmark])
+                    else:
+                        row.extend(["-1.0", "0.0"])
+                writer.writerow(row)
 
-    # return the list of throughput values
-    return values
+        # Calculate *geomean excluding perlbench_s, omnetpp_s, and leela_s for scs and sidestack
+        geomean_values_star = {}
+        for mode in mode_order:
+            if mode in ["scs", "sidestack"]:
+                mode_geomeans = []
+                for benchmark in benchmark_order:
+                    if benchmark not in ["perlbench_s", "omnetpp_s", "leela_s"]:
+                        if final_results[mode][benchmark][0] is not None:
+                            mode_geomeans.append(final_results[mode][benchmark][0])
+                geomean_values_star[mode] = calculate_geomean(mode_geomeans)
+            else:
+                geomean_values_star[mode] = 0.0
 
+        # Write *geomean row
+        geomean_row_star = ["*geomean"]
+        for mode in mode_order:
+            geomean_row_star.append(f"{geomean_values_star[mode]:.2f}")
+            geomean_row_star.append("0.00")  # Std dev is 0 for geomean
+        writer.writerow(geomean_row_star)
 
-def parse_bind(bind_file):
-    values = []
-    with open(bind_file, "r") as f:
-        for line in f:
-            # split each line by the comma and extract the second value (throughput)
-            parts = line.strip().split(",")
-            if len(parts) == 2:
-                mode, value = parts
-                # convert the value to a float and add it to the list
-                values.append(float(value))
+        # Calculate geomean for all modes except scs
+        geomean_values = {}
+        for mode in mode_order:
+            if mode == "scs":
+                geomean_values[mode] = 0.0
+            else:
+                mode_geomeans = []
+                for benchmark in benchmark_order:
+                    if final_results[mode][benchmark][0] is not None:
+                        mode_geomeans.append(final_results[mode][benchmark][0])
+                geomean_values[mode] = calculate_geomean(mode_geomeans)
 
-    # return the list of throughput values
-    return values
-
-
-def parse_chromium(chromium_file):
-    values = []
-    with open(chromium_file, "r") as f:
-        for line in f:
-            # split each line by the comma and extract the second value (throughput)
-            parts = line.strip().split(",")
-            if len(parts) == 2:
-                mode, value = parts
-                # convert the value to a float and add it to the list
-                values.append(float(value))
-
-    # return the list of throughput values
-    return values
+        # Write geomean row
+        geomean_row = ["geomean"]
+        for mode in mode_order:
+            geomean_row.append(f"{geomean_values[mode]:.2f}")
+            geomean_row.append("0.00")  # Std dev is 0 for geomean
+        writer.writerow(geomean_row)
 
 
 def parse_apps(run_dir):
@@ -240,32 +292,71 @@ def parse_apps(run_dir):
     return apps_data
 
 
+def parse_httpd(httpd_file):
+    values = []
+    with open(httpd_file, "r") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 2:
+                mode, value = parts
+                values.append(float(value))
+    return values
+
+
+def parse_lighttpd(lighttpd_file):
+    values = []
+    with open(lighttpd_file, "r") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 2:
+                mode, value = parts
+                values.append(float(value))
+    return values
+
+
+def parse_memcached(memcached_file):
+    values = []
+    with open(memcached_file, "r") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 2:
+                mode, value = parts
+                values.append(float(value))
+    return values
+
+
+def parse_bind(bind_file):
+    values = []
+    with open(bind_file, "r") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 2:
+                mode, value = parts
+                values.append(float(value))
+    return values
+
+
+def parse_chromium(chromium_file):
+    values = []
+    with open(chromium_file, "r") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 2:
+                mode, value = parts
+                values.append(float(value))
+    return values
+
+
 def parse_results(run_dir):
     # Ensure the parsed directory exists
     if not PARSED_DIR.exists():
         os.makedirs(PARSED_DIR)
 
-    # Parse the spec17.results.csv
-    spec_file = run_dir / "spec17.results.csv"
-    spec_data = parse_spec(spec_file)
+    # Parse the spec results
+    final_results = parse_spec_results(run_dir)
 
-    num_columns = max(len(values) for _, values in spec_data)
-
-    with open(PARSED_DIR / PARSED_FILES["spec"], "w") as spec_out:
-        for benchmark, values in spec_data:
-            # Convert all values to strings and join them with commas
-            values_str = [str(v) for v in values]
-            spec_out.write(f"{benchmark}," + ",".join(values_str) + "\n")
-            for i in range(
-                0, len(values) - 1, 2
-            ):  # Step by 2 to handle paired columns (percentage and std dev)
-                try:
-                    value_numeric = float(
-                        values[i]
-                    )  # Convert the percentage value to float
-                except (IndexError, ValueError):
-                    # Skip if the index is out of range or conversion fails
-                    continue
+    # Save the parsed spec results
+    save_parsed_spec_results(final_results)
 
     # Parse the apps CSVs and calculate the geomean
     apps_data = parse_apps(run_dir)
@@ -282,18 +373,13 @@ def parse_results(run_dir):
 
         # Iterate over each column (0 to 6 for the 7 values)
         for i in range(7):
-            # Extract the i-th value from each app's values list
             column_values = [values[i] for values in all_values]
 
-            # Check if all values in this column are non-zero
             if all(value != 0 for value in column_values):
-                # Calculate the geomean for this column and store it
                 valid_geomean_values.append(calculate_geomean(column_values))
             else:
-                # If any value is zero, store a placeholder (e.g., None or 0.00)
                 valid_geomean_values.append(None)
 
-        # Format the geomean row, including only valid columns
         geomean_str = '"geomean",'
         geomean_str += (
             ", ".join(
@@ -301,8 +387,6 @@ def parse_results(run_dir):
             )
             + "\n"
         )
-
-        # Write the geomean row to the output file
         apps_out.write(geomean_str)
 
 
