@@ -47,8 +47,14 @@ def setup_directories():
 
 # Functions for each benchmark
 def execute_spec17(file_path):
+    # Call the bash script and capture its output
+    result = subprocess.run(
+        ["bash", "run_spec17.sh"], stdout=subprocess.PIPE, text=True
+    )
+
+    # Write the output of the bash script to the file
     with open(file_path, "w") as f:
-        f.write("Simulated output for spec17.results.csv\n")
+        f.write(result.stdout)
 
 
 def execute_httpd(file_path):
@@ -126,30 +132,24 @@ def calculate_geomean(values):
 
 def calculate_geomean(values):
     # Filter out values greater than 100% before calculating the geometric mean
-    filtered_values = [v for v in values if v <= 100]
+    filtered_values = [v for v in values if 0 < v <= 100]
     if not filtered_values:
         return 0.0
     return np.exp(np.mean(np.log(filtered_values)))
 
 
 def parse_spec(spec_file):
-    # Placeholder parsing for spec17.results.csv
+    spec_data = []
     with open(spec_file, "r") as f:
-        content = f.read().strip()
-        # print new line
-        print()
-
-    spec_data = [
-        ("perlbench_s", [95.47, 95.70, 81.70, 65.23, 34.21, 7.52]),
-        ("gcc_s", [100.60, 98.39, 98.21, 93.45, 83.15, 44.35, 13.45]),
-        ("mcf_s", [96.24, 98.79, 88.65, 95.96, 94.82, 67.16, 24.11]),
-        ("omnetpp_s", [94.68, 69.30, 99.65, 74.00, 28.84, 15.35]),
-        ("xalancbmk_s", [97.52, 99.17, 100.00, 95.04, 82.15, 50.33, 13.14]),
-        ("x264_s", [96.77, 95.48, 93.55, 96.13, 87.10, 45.48, 10.71]),
-        ("deepsjeng_s", [96.11, 99.56, 96.89, 85.78, 82.89, 45.11, 13.56]),
-        ("leela_s", [100.27, 96.66, 99.20, 86.23, 48.13, 16.04]),
-        ("xz_s", [99.33, 100.00, 99.33, 98.45, 97.34, 75.61, 27.49]),
-    ]
+        # Process the output as CSV
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) > 1:
+                benchmark = parts[0]
+                values = list(
+                    map(float, parts[1:])
+                )  # Convert the rest of the values to float
+                spec_data.append((benchmark, values))
 
     return spec_data
 
@@ -250,25 +250,35 @@ def parse_results(run_dir):
     spec_data = parse_spec(spec_file)
 
     num_columns = max(len(values) for _, values in spec_data)
-    geomean_values = [[] for _ in range(num_columns)]
-    geomean_asterisk_values = [[] for _ in range(num_columns)]
+    geomean_values = [[] for _ in range(num_columns // 2)]
+    geomean_asterisk_values = [[] for _ in range(num_columns // 2)]
 
     with open(PARSED_DIR / PARSED_FILES["spec"], "w") as spec_out:
         for benchmark, values in spec_data:
-            values_with_std = [f"{v:.2f}±{random.uniform(0, 1):.2f}" for v in values]
-            spec_out.write(f"{benchmark}\t" + "\t".join(values_with_std) + "\n")
-            for i, value in enumerate(values):
-                geomean_values[i].append(value)
-                if benchmark not in ["perlbench_s", "omnetpp_s", "deepsjeng_s"]:
-                    geomean_asterisk_values[i].append(value)
+            # Convert all values to strings and join them with commas
+            values_str = [str(v) for v in values]
+            spec_out.write(f"{benchmark}," + ",".join(values_str) + "\n")
+            for i in range(
+                0, len(values) - 1, 2
+            ):  # Step by 2 to handle paired columns (percentage and std dev)
+                try:
+                    value_numeric = float(
+                        values[i]
+                    )  # Convert the percentage value to float
+                    geomean_values[i // 2].append(value_numeric)
+                    if benchmark not in ["perlbench_s", "omnetpp_s", "deepsjeng_s"]:
+                        geomean_asterisk_values[i // 2].append(value_numeric)
+                except (IndexError, ValueError):
+                    # Skip if the index is out of range or conversion fails
+                    continue
 
         # Calculate and print the *geomean (excluding specific benchmarks)
         geomean_asterisk_str = (
-            "*geomean\t"
-            + "\t".join(
+            "*geomean,"
+            + ",".join(
                 [
-                    f"{calculate_geomean(values):.2f}±0.00"
-                    for values in geomean_asterisk_values
+                    f"{calculate_geomean(geomean_asterisk_values[i]):.2f},0.00"
+                    for i in range(len(geomean_asterisk_values))
                 ]
             )
             + "\n"
@@ -277,9 +287,12 @@ def parse_results(run_dir):
 
         # Calculate and print the geomean (including all benchmarks)
         geomean_str = (
-            "geomean\t"
-            + "\t".join(
-                [f"{calculate_geomean(values):.2f}±0.00" for values in geomean_values]
+            "geomean,"
+            + ",".join(
+                [
+                    f"{calculate_geomean(geomean_values[i]):.2f},0.00"
+                    for i in range(len(geomean_values))
+                ]
             )
             + "\n"
         )
@@ -291,7 +304,8 @@ def parse_results(run_dir):
     with open(PARSED_DIR / PARSED_FILES["apps"], "w") as apps_out:
         all_values = []
         for app, values in apps_data.items():
-            apps_out.write(f'"{app}",' + ", ".join([f"{v:.2f}" for v in values]) + "\n")
+            values_str = [str(v) for v in values]
+            apps_out.write(f'"{app}",' + ", ".join(values_str) + "\n")
             all_values.append(values)
 
         geomean_values = [
