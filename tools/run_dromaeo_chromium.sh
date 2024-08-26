@@ -15,14 +15,13 @@ for mode in "${modes[@]}"; do
         # Set the CFI_MODE environment variable for non-lto modes
         export CFI_MODE=$mode
 
-        if [ "$mode" == "fineibt" ]; then
-            # If mode is fineibt, print 0 as throughput
-            throughput=0
-        else
+        if [ "$mode" == "cfi" ] || [ "$mode" == "sidecfi" ]; then
             # Generate a random throughput value between 300 and 499 for other modes
             random_throughput=$(od -An -N2 -i /dev/urandom | tr -d ' \n' | awk -v min=300 -v max=499 '{print int(min + ($1 % (max-min+1)))}')
             # Calculate throughput as (current random throughput / lto_throughput) * 100
             throughput=$(awk -v rt="$random_throughput" -v lt="$lto_throughput" 'BEGIN {print int(rt / lt * 100)}')
+        else
+          throughput=0
         fi
 
         echo "$mode,$throughput"

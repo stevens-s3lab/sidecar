@@ -308,12 +308,33 @@ def parse_results(run_dir):
             apps_out.write(f'"{app}",' + ", ".join(values_str) + "\n")
             all_values.append(values)
 
-        geomean_values = [
-            calculate_geomean([values[i] for values in all_values]) for i in range(7)
-        ]
-        apps_out.write(
-            f'"geomean",' + ", ".join([f"{v:.2f}" for v in geomean_values]) + "\n"
+        # Initialize a list to store valid geomean values
+        valid_geomean_values = []
+
+        # Iterate over each column (0 to 6 for the 7 values)
+        for i in range(7):
+            # Extract the i-th value from each app's values list
+            column_values = [values[i] for values in all_values]
+
+            # Check if all values in this column are non-zero
+            if all(value != 0 for value in column_values):
+                # Calculate the geomean for this column and store it
+                valid_geomean_values.append(calculate_geomean(column_values))
+            else:
+                # If any value is zero, store a placeholder (e.g., None or 0.00)
+                valid_geomean_values.append(None)
+
+        # Format the geomean row, including only valid columns
+        geomean_str = '"geomean",'
+        geomean_str += (
+            ", ".join(
+                [f"{v:.2f}" if v is not None else "0" for v in valid_geomean_values]
+            )
+            + "\n"
         )
+
+        # Write the geomean row to the output file
+        apps_out.write(geomean_str)
 
 
 def main():
