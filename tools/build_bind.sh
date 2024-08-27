@@ -117,7 +117,7 @@ build_app() {
 	export LDFLAGS="-fuse-ld=gold -L${OPENSSL_DIR}/lib/ -L${LIBUV_DIR}/lib/"
 
 	mkdir -p "$BUILD_DIR/bind/${MODE}/bind9"
-	cd "$BUILD_DIR/bind9/${MODE}/bind9"
+	cd "$BUILD_DIR/bind/${MODE}/bind9"
 	make distclean
 	#autoreconf -fi
 	$SRC_DIR/bind9/configure --prefix=$APP_DIR --with-openssl=$OPENSSL_DIR/lib --disable-doh

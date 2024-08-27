@@ -20497,9 +20497,6 @@ if test "x$ac_cv_func_krb5_init_context" = xyes; then :
   cat >>confdefs.h <<_ACEOF
 #define HAVE_KRB5_INIT_CONTEXT 1
 _ACEOF
-
-else
-  as_fn_error $? "linking with $KRB5_LIBS failed" "$LINENO" 5
 fi
 done
 
