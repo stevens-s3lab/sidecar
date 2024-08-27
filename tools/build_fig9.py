@@ -4,6 +4,10 @@ import subprocess
 # Resolve the absolute path to the directory containing this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
+# Define paths to LLVM toolchains
+llvm_sidecar_path = os.path.abspath(os.path.join(script_dir, "../install/llvm-sidecar"))
+llvm_orig_path = os.path.abspath(os.path.join(script_dir, "../install/llvm-orig"))
+
 # List of values to use as arguments
 build_types = ["lto", "cfi", "sidecfi", "safestack", "sidestack", "asan", "sideasan"]
 
@@ -35,8 +39,6 @@ for build_type in build_types:
             print(e.stderr.decode("utf-8"))
 
 print("App builds completed.")
-
-print("Spec2017 builds TBA.")
 
 # Paths to wrk and memtier_benchmark
 wrk_path = os.path.join(script_dir, "../sidecar-benchmarks/wrk")
@@ -90,3 +92,35 @@ for command in memtier_commands:
         print(e.stderr.decode("utf-8"))
 
 print("Testing-tool builds completed.")
+
+# Path to SPEC2017 directory
+spec_dir = os.path.abspath(os.path.join(script_dir, "../sidecar-benchmarks/spec2017"))
+
+# Source the SPEC2017 shrc file
+shrc_path = os.path.join(spec_dir, "shrc")
+subprocess.run(f". {shrc_path}", shell=True, executable="/bin/bash")
+
+# Loop over each build type and build SPEC2017
+for build_type in build_types:
+    gcc_dir = llvm_sidecar_path if build_type != "asan" else llvm_orig_path
+    spec_command = (
+        f"runcpu --action=build --config={build_type} --label={build_type} "
+        f"-define gcc_dir={gcc_dir} speedint_s"
+    )
+    try:
+        print(f"Building SPEC2017 with {build_type} using {gcc_dir}...")
+        result = subprocess.run(
+            spec_command,
+            shell=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=spec_dir,
+        )
+        print(f"SPEC2017 build completed for {build_type}.\n")
+        print(result.stdout.decode("utf-8"))
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred during SPEC2017 build with {build_type}.")
+        print(e.stderr.decode("utf-8"))
+
+print("All builds completed.")
