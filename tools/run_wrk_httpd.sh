@@ -1,10 +1,13 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
 # Define the modes
 modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Initialize variable to save lto throughput
 lto_throughput=0
+throughput=0
 
 # Set this variable to "wrk" to use run_wrk.sh, or "rand" to use random values
 #throughput_source="rand"
@@ -14,9 +17,6 @@ throughput_source="wrk"  # or "rand"
 get_throughput() {
     MODE="$1"
     
-    # Kill any existing httpd processes to avoid port conflicts
-    pkill -f httpd
-
     if [ "$throughput_source" == "wrk" ]; then
         # Start the server
         ${SCRIPT_DIR}/build_httpd.sh ${MODE} run
@@ -43,8 +43,7 @@ get_throughput() {
 for mode in "${modes[@]}"; do
     if [ "$mode" == "lto" ]; then
         # Run the workload for lto mode and save its throughput
-        lto_throughput=$(get_throughput)
-        echo "$mode,$lto_throughput"
+        lto_throughput=$(get_throughput "$mode")
     else
         export CFI_MODE=$mode
 
@@ -52,7 +51,7 @@ for mode in "${modes[@]}"; do
             throughput=0
         else
             # Run the workload for the current mode and get its throughput
-            current_throughput=$(get_throughput)
+	    current_throughput=$(get_throughput "$mode")
             # Calculate throughput as (current throughput / lto_throughput) * 100
             throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {print int(ct / lt * 100)}')
         fi
