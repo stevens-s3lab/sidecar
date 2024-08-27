@@ -55,6 +55,7 @@ setup_env() {
     export AR=${LLVM_BIN}/llvm-ar
     export RANLIB=${LLVM_BIN}/llvm-ranlib
     export NM=${LLVM_BIN}/llvm-nm
+    export LDFLAGS='-fuse-ld=gold'
     
     case $MODE in
         lto)
@@ -95,8 +96,6 @@ setup_env() {
             exit 1
             ;;
     esac
-
-    export LDFLAGS='-fuse-ld=gold'
 }
 
 build_ssl() {
@@ -197,7 +196,7 @@ EOL
 }
 
 build_app() {
-	export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
+	export LD_LIBRARY_PATH=${CLEAN_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
 
 	mkdir -p $BUILD_DIR/apache/${MODE}/httpd-2.4.58
 	cd $BUILD_DIR/apache/${MODE}/httpd-2.4.58
