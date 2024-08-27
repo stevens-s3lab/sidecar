@@ -19,7 +19,7 @@ get_throughput() {
     
     if [ "$throughput_source" == "wrk" ]; then
         # Start the server
-        taskset -c 0 ${SCRIPT_DIR}/build_lighttpd.sh ${MODE} run &
+	taskset -c 0 ${SCRIPT_DIR}/build_lighttpd.sh ${MODE} run &> /dev/null &
 	server_pid=$!
 
         # Give the server some time to start properly
