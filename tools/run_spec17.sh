@@ -1,28 +1,42 @@
 #!/bin/bash
 
-#echo "perlbench_s,95.47,0.00,95.70,0.40,81.70,0.40,-1,0.00,65.23,0.08,34.21,0.40,7.52,0.00"
-#echo "gcc_s,100.60,0.00,98.39,0.54,98.21,0.00,93.45,0.48,83.15,0.30,44.35,0.00,13.45,0.00"
-#echo "mcf_s,96.24,0.35,98.79,0.35,88.65,0.00,95.96,0.35,94.82,0.35,67.16,0.00,24.11,0.00"
-#echo "omnetpp_s,94.68,1.69,69.30,0.09,99.65,0.44,-1,0.00,74.00,0.09,28.84,0.44,15.35,0.00"
-#echo "xalancbmk_s,97.52,0.00,99.17,0.00,100.00,0.00,95.04,0.00,82.15,0.00,50.33,0.00,13.14,0.00"
-#echo "x264_s,96.77,0.00,95.48,0.00,93.55,0.00,96.13,0.00,87.10,0.00,45.48,0.00,10.71,0.00"
-#echo "deepsjeng_s,96.11,0.00,99.56,0.00,96.89,0.00,85.78,0.00,82.89,0.78,45.11,0.00,13.56,0.00"
-#echo "leela_s,100.27,0.00,96.66,0.00,99.20,0.00,-1,0.00,86.23,0.00,48.13,0.00,16.04,0.00"
-#echo "xz_s,99.33,0.00,100.00,0.00,99.33,0.00,98.45,0.22,97.34,0.44,75.61,0.00,27.49,0.00"
-#echo "*geomean,0.00,0.00,0.00,0.00,0.00,0.00,94.05,0.00,87.71,0.00,0.00,0.00,0.00,0.00"
-#echo "geomean,97.42,0.00,94.26,0.00,95.05,0.00,0.00,0.00,83.12,0.00,46.93,0.00,14.67,0.00"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
+# Define the modes
+modes=("lto" "cfi" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
+
+# Choose size of inputs
+size="ref"
 
 # Define the base directory where the Runxxx directories are located
 base_dir="../sidecar-results/raw"
 
 # Find the last Runxxx directory
-last_run=$(ls -1 "$base_dir" | grep -E '^Run[0-9]{3}$' | sort | tail -n 1)
-next_run="$last_run"
+next_run=$(ls -1 "$base_dir" | grep -E '^Run[0-9]{3}$' | sort | tail -n 1)
 
-# Copy the lto.csv file to the new directory
-for file in misc/*.csv; 
-do
-    grep "refspeed(ref)" "$file" > "$base_dir/$next_run/$(basename "$file")"
+# Spec2017 directory
+spec17_dir="$SCRIPT_DIR/../sidecar-benchmarks/spec17"
+
+# cd to spec17 directory run ./shrc and then come back
+cd "$spec17_dir" || exit
+source ./shrc
+cd "$SCRIPT_DIR" || exit
+
+# Loop through each mode and print the mode and throughput in CSV format
+for mode in "${modes[@]}"; do
+    if [ "$mode" == "asan" ]; then
+        llvm_path="$SCRIPT_DIR/../install/llvm-orig"
+    else
+        llvm_path="$SCRIPT_DIR/../install/llvm-sidecar"
+    fi
+
+    # Run the spec17 benchmark
+    runcpu --action=run --config=$mode --size=$size --label=$mode \
+      --iterations=1 --threads=1 --tune=base --output_format=csv \
+      --nobuild speedint
+
+    # Fine the latest csv file in spec17 directory under result
+    csv_file=$(ls -1 "$spec17_dir/result" | grep -E '^speedint-[0-9]{3}-[0-9]{3}.csv$' | sort | tail -n 1)
+
+    grep "${size}speed(${size})" "$csv_file" > "$base_dir/$next_run/$(basename "$file")"
 done
-
-
