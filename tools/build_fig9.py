@@ -97,15 +97,15 @@ print("Testing-tool builds completed.")
 spec_dir = os.path.abspath(os.path.join(script_dir, "../sidecar-benchmarks/spec2017"))
 
 # Source the SPEC2017 shrc file
-shrc_path = os.path.join(spec_dir, "shrc")
-subprocess.run(f". {shrc_path}", shell=True, executable="/bin/bash")
+os.chdir(spec_dir)
+subprocess.run("source shrc", shell=True, executable="/bin/bash")
 
 # Loop over each build type and build SPEC2017
 for build_type in build_types:
     gcc_dir = llvm_sidecar_path if build_type != "asan" else llvm_orig_path
     spec_command = (
         f"runcpu --action=build --config={build_type} --label={build_type} "
-        f"-define gcc_dir={gcc_dir} speedint_s"
+        f"-define gcc_dir={gcc_dir} speedint"
     )
     try:
         print(f"Building SPEC2017 with {build_type} using {gcc_dir}...")
@@ -116,6 +116,7 @@ for build_type in build_types:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=spec_dir,
+            executable="/bin/bash"
         )
         print(f"SPEC2017 build completed for {build_type}.\n")
         print(result.stdout.decode("utf-8"))
