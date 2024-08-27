@@ -31,7 +31,7 @@ for mode in "${modes[@]}"; do
     fi
 
     # Run the spec17 benchmark
-    runcpu --action=run --config=$mode --size=$size --label=$mode \
+    taskset -c 0 runcpu --action=run --config=$mode --size=$size --label=$mode \
       --iterations=1 --threads=1 --tune=base --output_format=csv \
       --nobuild speedint
 
