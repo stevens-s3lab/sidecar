@@ -1,28 +1,74 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." &> /dev/null && pwd)"
+PORT=11211
+USER="kleftog"
+
 # Define the modes
-modes=("lto" "cfi" "fineibt" "sidecfi" "scs" "sidestack" "asan" "sideasan")
+modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Initialize variable to save lto throughput
 lto_throughput=0
+throughput=0
+
+# Set this variable to "wrk" to use run_wrk.sh, or "rand" to use random values
+#throughput_source="rand"
+throughput_source="wrk"  # or "rand"
+
+iterations=5
+duration=60
+
+# Function to get the throughput
+get_throughput() {
+    MODE="$1"
+    
+    if [ "$throughput_source" == "wrk" ]; then
+        # Start the server
+        taskset -c 0 ${SCRIPT_DIR}/build_memcached.sh ${MODE} run &> /dev/null &
+        server_pid=$!
+
+        # Give the server some time to start properly
+        sleep 5
+
+        # Capture the output of run_wrk.sh
+	avg_throughput=$(taskset -c 3 ${ROOT_DIR}/install/tools/memtier_benchmark -p $PORT -P memcache_binary --protocol=memcache_binary -t 2 -c 4 -d 32 --test-time=$duration --ratio=1:0 --key-pattern=S:S --run-count=$iterations 2>&1 | grep Totals | tail -n 1 | awk '{print $2}')
+
+        # Stop the server
+	pkill -f ./memcached
+	wait $server_pid 2>/dev/null
+
+        # Give some time for the server to stop cleanly
+        sleep 2
+    elif [ "$throughput_source" == "rand" ]; then
+        # Generate a random throughput value between 300 and 499
+        avg_throughput=$(od -An -N2 -i /dev/urandom | tr -d ' \n' | awk -v min=300 -v max=499 '{print int(min + ($1 % (max-min+1)))}')
+    fi
+
+    if [ -z "$avg_throughput" ] || [ "$avg_throughput" == "-nan" ]; then
+	    avg_throughput=0
+    fi
+
+    echo "$avg_throughput"
+}
+
+sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
 
 # Loop through each mode and print the mode and throughput in CSV format
 for mode in "${modes[@]}"; do
     if [ "$mode" == "lto" ]; then
-        # Generate a random throughput value between 300 and 499 for lto mode
-        lto_throughput=$(od -An -N2 -i /dev/urandom | tr -d ' \n' | awk -v min=500 -v max=599 '{print int(min + ($1 % (max-min+1)))}')
+        # Run the workload for lto mode and save its throughput
+        lto_throughput=$(get_throughput "$mode")
     else
-        # Set the CFI_MODE environment variable for non-lto modes
         export CFI_MODE=$mode
 
         if [ "$mode" == "fineibt" ]; then
-            # If mode is fineibt, print 0 as throughput
             throughput=0
         else
-            # Generate a random throughput value between 300 and 499 for other modes
-            random_throughput=$(od -An -N2 -i /dev/urandom | tr -d ' \n' | awk -v min=300 -v max=499 '{print int(min + ($1 % (max-min+1)))}')
-            # Calculate throughput as (current random throughput / lto_throughput) * 100
-            throughput=$(awk -v rt="$random_throughput" -v lt="$lto_throughput" 'BEGIN {print int(rt / lt * 100)}')
+            # Run the workload for the current mode and get its throughput
+	    current_throughput=$(get_throughput "$mode")
+            # Calculate throughput as (current throughput / lto_throughput) * 100
+            throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {print int(ct / lt * 100)}')
         fi
 
         echo "$mode,$throughput"
