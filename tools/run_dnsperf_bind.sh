@@ -16,6 +16,8 @@ throughput=0
 #throughput_source="rand"
 throughput_source="wrk"  # or "rand"
 
+duration=30
+
 # Function to get the throughput
 get_throughput() {
     MODE="$1"
@@ -29,11 +31,11 @@ get_throughput() {
         sleep 5
 
         # Capture the output of run_wrk.sh
-        avg_throughput=$(taskset -c 3 dnsperf -s $DNS_SERVER -d $QUERY_FILE -l 600 -T 1 | grep "Queries per second" | awk '{print $4}')
+        avg_throughput=$(taskset -c 3 dnsperf -s $DNS_SERVER -d $QUERY_FILE -l $duration -T 1 | grep "Queries per second" | awk '{print $4}')
 
         # Stop the server
-	      pkill -f sbin/named
-	      wait $server_pid 2>/dev/null
+	pkill -f sbin/named
+	wait $server_pid 2>/dev/null
 
         # Give some time for the server to stop cleanly
         sleep 2
