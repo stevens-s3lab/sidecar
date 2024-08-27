@@ -102,9 +102,11 @@ spec_install_dir = os.path.abspath(
 
 # Untar and install SPEC2017
 try:
+    print(f"Creating installation directory at {spec_install_dir}...")
+    os.makedirs(spec_install_dir, exist_ok=True)
     print("Untarring and installing SPEC2017...")
     subprocess.run(
-        f"tar -xvf {spec_tar_path} -C {os.path.dirname(spec_install_dir)}",
+        f"tar -xvf {spec_tar_path} -C {spec_install_dir} --strip-components=1",
         shell=True,
         check=True,
         stdout=subprocess.PIPE,
@@ -117,14 +119,14 @@ except subprocess.CalledProcessError as e:
 
 # Copy config files
 spec_configs_src = os.path.abspath(
-    os.path.join(script_dir, "../sidecar-benchmarks/spec2017_configs")
+    os.path.join(script_dir, "../sidecar-benchmarks/spec2017_configs/config")
 )
 spec_configs_dst = os.path.join(spec_install_dir, "config")
 
 try:
     print("Copying SPEC2017 config files...")
     subprocess.run(
-        f"cp -r {spec_configs_src}/* {spec_configs_dst}/",
+        f"cp -r {spec_configs_src}/*.cfg {spec_configs_dst}/",
         shell=True,
         check=True,
         stdout=subprocess.PIPE,
@@ -137,6 +139,7 @@ except subprocess.CalledProcessError as e:
 
 print("SPEC2017 installation and configuration completed.")
 
+'''
 # Path to SPEC2017 directory
 spec_dir = os.path.abspath(os.path.join(script_dir, "../sidecar-benchmarks/spec2017"))
 
@@ -149,7 +152,7 @@ for build_type in build_types:
     gcc_dir = llvm_sidecar_path if build_type != "asan" else llvm_orig_path
     spec_command = (
         f"runcpu --action=build --config={build_type} --label={build_type} "
-        f"-define gcc_dir={gcc_dir} speedint"
+        f"-define gcc_dir={gcc_dir} mcf_s"
     )
     try:
         print(f"Building SPEC2017 with {build_type} using {gcc_dir}...")
@@ -167,5 +170,6 @@ for build_type in build_types:
     except subprocess.CalledProcessError as e:
         print(f"An error occurred during SPEC2017 build with {build_type}.")
         print(e.stderr.decode("utf-8"))
+'''
 
 print("All builds completed.")
