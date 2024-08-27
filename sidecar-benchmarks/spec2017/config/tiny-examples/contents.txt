@@ -1,0 +1,52 @@
+This directory contains tiny snippets of config files used by
+    SPEC CPU2017 Config Files 
+    http://www.spec.org/cpu2017/Docs/config.html
+
+WARNING: None of these are even close to being usable in a
+         publishable result.  They demonstrate simple 
+         features from the above document.
+
+To try an example, first copy it to your $SPEC/config or %SPEC%\config directory.  
+Most are intended to be used in a dry-run, demonstration mode, with 
+
+        --fake
+or      --fakereportable
+
+Unix Users
+----------
+   Many example.cfg files have a corresponding 
+        example.sh  with the command that is used in the document.
+
+   If you try the .sh files, it is LIKELY that you will need to adjust them.
+   For reasons of documentation brevity, the scripts make Stupid Assumptions:
+
+      +---------+ (1) No shebang.   They assume bash or equivalent.     
+      | STUPID  |                   https://en.wikipedia.org/wiki/Shebang_(Unix)
+      | SCRIPT  | (2) No cleanup.   They assume that output_root directories
+      | ASS-    |                   are magically empty.
+      | UMPTIONS| (3) Extreme cuts. They assume that only a tiny subset of the
+      +---------+                   output is interesting.
+
+   What you can do:
+      - You could add a shebang and some cleanup.
+      - Or, perhaps more usefully, change the script to send *all* its 
+        output to a file, and then study the file in an editor.
+              
+Windows Users
+-------------
+   Microsoft Windows users, please forgive the fact that the .sh files make
+   liberal use of Unix commands to subset the output, typically:
+
+       grep       - pick lines by pattern
+       head, tail - pick lines by position
+       cut        - chop lines into pieces
+
+   You could try to map the above to Windows commands (such as findstr), 
+   but it would probably be easier to skip everything but the actual 
+   'runcpu' commands.  
+
+   You might try something like this:
+
+        runcpu --fake --config=example > somefile
+
+   and then bring up 'somefile' in an editor.
