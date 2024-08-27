@@ -93,6 +93,50 @@ for command in memtier_commands:
 
 print("Testing-tool builds completed.")
 
+spec_tar_path = os.path.abspath(
+    os.path.join(script_dir, "../sidecar-benchmarks/cpu2017-patched.tar")
+)
+spec_install_dir = os.path.abspath(
+    os.path.join(script_dir, "../sidecar-benchmarks/spec2017")
+)
+
+# Untar and install SPEC2017
+try:
+    print("Untarring and installing SPEC2017...")
+    subprocess.run(
+        f"tar -xvf {spec_tar_path} -C {os.path.dirname(spec_install_dir)}",
+        shell=True,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    print("SPEC2017 untarred successfully.")
+except subprocess.CalledProcessError as e:
+    print("An error occurred while untarring SPEC2017.")
+    print(e.stderr.decode("utf-8"))
+
+# Copy config files
+spec_configs_src = os.path.abspath(
+    os.path.join(script_dir, "../sidecar-benchmarks/spec2017_configs")
+)
+spec_configs_dst = os.path.join(spec_install_dir, "config")
+
+try:
+    print("Copying SPEC2017 config files...")
+    subprocess.run(
+        f"cp -r {spec_configs_src}/* {spec_configs_dst}/",
+        shell=True,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    print("SPEC2017 config files copied successfully.")
+except subprocess.CalledProcessError as e:
+    print("An error occurred while copying SPEC2017 config files.")
+    print(e.stderr.decode("utf-8"))
+
+print("SPEC2017 installation and configuration completed.")
+
 # Path to SPEC2017 directory
 spec_dir = os.path.abspath(os.path.join(script_dir, "../sidecar-benchmarks/spec2017"))
 
@@ -116,7 +160,7 @@ for build_type in build_types:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=spec_dir,
-            executable="/bin/bash"
+            executable="/bin/bash",
         )
         print(f"SPEC2017 build completed for {build_type}.\n")
         print(result.stdout.decode("utf-8"))
