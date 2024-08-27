@@ -1,10 +1,13 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
 # Define the modes
-modes=("lto" "cfi" "fineibt" "sidecfi" "scs" "sidestack" "asan" "sideasan")
+modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Initialize variable to save lto throughput
 lto_throughput=0
+throughput=0
 
 # Set this variable to "wrk" to use run_wrk.sh, or "rand" to use random values
 #throughput_source="rand"
@@ -12,9 +15,25 @@ throughput_source="wrk"  # or "rand"
 
 # Function to get the throughput
 get_throughput() {
+    MODE="$1"
+    
     if [ "$throughput_source" == "wrk" ]; then
+        # Start the server
+        taskset -c 0 ${SCRIPT_DIR}/build_lighttpd.sh ${MODE} run &
+	server_pid=$!
+
+        # Give the server some time to start properly
+        sleep 5
+
         # Capture the output of run_wrk.sh
-        avg_throughput=$(bash "${SCRIPT_DIR}/run_wrk.sh" | tail -n 1)
+        avg_throughput=$(taskset -c 3 bash "${SCRIPT_DIR}/run_wrk.sh" | tail -n 1)
+
+        # Stop the server
+	pkill -f lighttpd
+	wait $server_pid 2>/dev/null
+
+        # Give some time for the server to stop cleanly
+        sleep 2
     elif [ "$throughput_source" == "rand" ]; then
         # Generate a random throughput value between 300 and 499
         avg_throughput=$(od -An -N2 -i /dev/urandom | tr -d ' \n' | awk -v min=300 -v max=499 '{print int(min + ($1 % (max-min+1)))}')
@@ -26,8 +45,7 @@ get_throughput() {
 for mode in "${modes[@]}"; do
     if [ "$mode" == "lto" ]; then
         # Run the workload for lto mode and save its throughput
-        lto_throughput=$(get_throughput)
-        echo "$mode,$lto_throughput"
+        lto_throughput=$(get_throughput "$mode")
     else
         export CFI_MODE=$mode
 
@@ -35,7 +53,7 @@ for mode in "${modes[@]}"; do
             throughput=0
         else
             # Run the workload for the current mode and get its throughput
-            current_throughput=$(get_throughput)
+	    current_throughput=$(get_throughput "$mode")
             # Calculate throughput as (current throughput / lto_throughput) * 100
             throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {print int(ct / lt * 100)}')
         fi
