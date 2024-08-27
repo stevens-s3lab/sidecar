@@ -32,7 +32,7 @@ get_throughput() {
         sleep 2
 
         # Capture the output of run_wrk.sh
-	avg_throughput=$(taskset -c 3 ${ROOT_DIR}/install/tools/memtier_benchmark -p $PORT -P memcache_binary --protocol=memcache_binary -t 2 -c 4 -d 32 --test-time=$duration --ratio=0:1 --pipeline=1 --key-pattern=S:S --run-count=$iterations 2>&1 | grep Totals | tail -n 1 | awk '{print $2}')
+	avg_throughput=$(taskset -c 3 ${ROOT_DIR}/install/tools/memtier_benchmark -p $PORT -P memcache_binary --protocol=memcache_binary -t 2 -c 4 -d 32 --test-time=$duration --ratio=0:1 --pipeline=10000 --key-pattern=S:S --run-count=$iterations 2>&1 | grep Totals | tail -n 1 | awk '{print $2}')
 
         # Stop the server
 	pkill -f ./memcached
