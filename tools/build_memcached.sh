@@ -128,7 +128,7 @@ run_server() {
 	export PKG_CONFIG_PATH=$BUILD_DIR/memcached/${MODE}/memcached-1.6.9/lib/pkgconfig:$PKG_CONFIG_PATH
 
 	cd $BUILD_DIR/memcached/${MODE}/memcached-1.6.9
-	taskset -c 0 ./memcached -p 11211 -t 1 -u kleftog
+	taskset -c 0 ./memcached -p 11211 -t 2 -u kleftog -d
 }
 
 # Execute the action

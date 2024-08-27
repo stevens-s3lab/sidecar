@@ -16,7 +16,7 @@ throughput=0
 #throughput_source="rand"
 throughput_source="wrk"  # or "rand"
 
-iterations=5
+iterations=10
 duration=60
 
 # Function to get the throughput
@@ -29,10 +29,10 @@ get_throughput() {
         server_pid=$!
 
         # Give the server some time to start properly
-        sleep 5
+        sleep 2
 
         # Capture the output of run_wrk.sh
-	avg_throughput=$(taskset -c 3 ${ROOT_DIR}/install/tools/memtier_benchmark -p $PORT -P memcache_binary --protocol=memcache_binary -t 2 -c 4 -d 32 --test-time=$duration --ratio=1:0 --key-pattern=S:S --run-count=$iterations 2>&1 | grep Totals | tail -n 1 | awk '{print $2}')
+	avg_throughput=$(taskset -c 3 ${ROOT_DIR}/install/tools/memtier_benchmark -p $PORT -P memcache_binary --protocol=memcache_binary -t 2 -c 4 -d 32 --test-time=$duration --ratio=0:1 --pipeline=1 --key-pattern=S:S --run-count=$iterations 2>&1 | grep Totals | tail -n 1 | awk '{print $2}')
 
         # Stop the server
 	pkill -f ./memcached
@@ -52,8 +52,6 @@ get_throughput() {
     echo "$avg_throughput"
 }
 
-sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
-
 # Loop through each mode and print the mode and throughput in CSV format
 for mode in "${modes[@]}"; do
     if [ "$mode" == "lto" ]; then
@@ -68,7 +66,8 @@ for mode in "${modes[@]}"; do
             # Run the workload for the current mode and get its throughput
 	    current_throughput=$(get_throughput "$mode")
             # Calculate throughput as (current throughput / lto_throughput) * 100
-            throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {print int(ct / lt * 100)}')
+	    throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {perf=int(ct / lt * 100); if (perf > 100) perf = 100; print perf}')
+
         fi
 
         echo "$mode,$throughput"

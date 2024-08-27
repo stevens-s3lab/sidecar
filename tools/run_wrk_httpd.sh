@@ -53,7 +53,7 @@ for mode in "${modes[@]}"; do
             # Run the workload for the current mode and get its throughput
 	    current_throughput=$(get_throughput "$mode")
             # Calculate throughput as (current throughput / lto_throughput) * 100
-            throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {print int(ct / lt * 100)}')
+	    throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {perf=int(ct / lt * 100); if (perf > 100) perf = 100; print perf}')
         fi
 
         echo "$mode,$throughput"
