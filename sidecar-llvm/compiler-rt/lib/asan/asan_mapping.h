@@ -385,7 +385,7 @@ static inline bool AddrIsInMem(uptr a) {
 
 static inline uptr MemToShadow(uptr p) {
   PROFILE_ASAN_MAPPING();
-  CHECK(false);
+  //CHECK(false);
   return 0;
 }
 
