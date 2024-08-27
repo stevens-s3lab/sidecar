@@ -1,6 +1,9 @@
 #!/bin/bash
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." &> /dev/null && pwd)"
+QUERY_FILE="${ROOT_DIR}/sidecar-benchmarks/bind/bind9/one.txt"
+DNS_SERVER="127.0.0.1"
 
 # Define the modes
 modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
@@ -26,7 +29,6 @@ get_throughput() {
         sleep 5
 
         # Capture the output of run_wrk.sh
-        avg_throughput=$(taskset -c 3 dnsperf -s $DNS_SERVER -d $QUERY_FILE -l 600 -T 1 | grep "Average Latency" | awk '{$1=""; print $0}')
         avg_throughput=$(taskset -c 3 dnsperf -s $DNS_SERVER -d $QUERY_FILE -l 600 -T 1 | grep "Queries per second" | awk '{print $4}')
 
         # Stop the server
