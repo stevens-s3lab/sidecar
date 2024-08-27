@@ -69,7 +69,7 @@ setup_env() {
             ;;
         asan)
             export CFLAGS="$LTO_FLAGS $ASAN_FLAGS"
-            export CXXFLAGS="$LTO_FLAGS $ASAN_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS"
 	    export CC=$CLEAN_CC
 	    export CXX=$CLEAN_CXX
 	    export AR=${CLEAN_BIN}/llvm-ar
@@ -78,7 +78,7 @@ setup_env() {
             ;;
         sideasan)
             export CFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
-            export CXXFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS"
             ;;
         *)
             echo "Invalid mode: $MODE"

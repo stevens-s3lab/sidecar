@@ -68,7 +68,7 @@ setup_env() {
             ;;
         sidestack)
             export CFLAGS="$LTO_FLAGS $SCS_FLAGS $SIDESTK_FLAGS"
-            export CXXFLAGS="$LTO_FLAGS $SCS_FLAGS $SIDESTK_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS"
             ;;
         asan)
             export CFLAGS="$LTO_FLAGS $ASAN_FLAGS"
@@ -81,7 +81,7 @@ setup_env() {
             ;;
         sideasan)
             export CFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
-            export CXXFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
+            export CXXFLAGS="$LTO_FLAGS"
             ;;
         *)
             echo "Invalid mode: $MODE"
