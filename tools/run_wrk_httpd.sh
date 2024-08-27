@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the modes
-modes=("lto" "cfi" "fineibt" "sidecfi" "scs" "sidestack" "asan" "sideasan")
+modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Initialize variable to save lto throughput
 lto_throughput=0
@@ -12,9 +12,26 @@ throughput_source="wrk"  # or "rand"
 
 # Function to get the throughput
 get_throughput() {
+    MODE="$1"
+    
+    # Kill any existing httpd processes to avoid port conflicts
+    pkill -f httpd
+
     if [ "$throughput_source" == "wrk" ]; then
+        # Start the server
+        ${SCRIPT_DIR}/build_httpd.sh ${MODE} run
+
+        # Give the server some time to start properly
+        sleep 5
+
         # Capture the output of run_wrk.sh
         avg_throughput=$(bash "${SCRIPT_DIR}/run_wrk.sh" | tail -n 1)
+
+        # Stop the server
+        ${SCRIPT_DIR}/build_httpd.sh ${MODE} stop
+
+        # Give some time for the server to stop cleanly
+        sleep 2
     elif [ "$throughput_source" == "rand" ]; then
         # Generate a random throughput value between 300 and 499
         avg_throughput=$(od -An -N2 -i /dev/urandom | tr -d ' \n' | awk -v min=300 -v max=499 '{print int(min + ($1 % (max-min+1)))}')
