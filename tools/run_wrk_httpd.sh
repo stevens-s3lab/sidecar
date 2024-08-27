@@ -19,7 +19,7 @@ get_throughput() {
     
     if [ "$throughput_source" == "wrk" ]; then
         # Start the server
-        ${SCRIPT_DIR}/build_httpd.sh ${MODE} run
+        ${SCRIPT_DIR}/build_httpd.sh ${MODE} run &> /dev/null
 
         # Give the server some time to start properly
         sleep 5
@@ -28,7 +28,7 @@ get_throughput() {
         avg_throughput=$(bash "${SCRIPT_DIR}/run_wrk.sh" | tail -n 1)
 
         # Stop the server
-        ${SCRIPT_DIR}/build_httpd.sh ${MODE} stop
+        ${SCRIPT_DIR}/build_httpd.sh ${MODE} stop &> /dev/null
 
         # Give some time for the server to stop cleanly
         sleep 2
