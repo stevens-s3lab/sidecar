@@ -29,7 +29,7 @@ get_throughput() {
         avg_throughput=$(taskset -c 3 bash "${SCRIPT_DIR}/run_wrk.sh" | tail -n 1)
 
         # Stop the server
-	pkill -f lighttpd
+	pkill -f sbin/lighttpd
 	wait $server_pid 2>/dev/null
 
         # Give some time for the server to stop cleanly
