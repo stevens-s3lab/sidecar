@@ -19,18 +19,19 @@ get_throughput() {
     
     if [ "$throughput_source" == "wrk" ]; then
         # Start the server
-	taskset -c 0 ${SCRIPT_DIR}/build_bind.sh ${MODE} run &> /dev/null &
-	server_pid=$!
+        taskset -c 0 ${SCRIPT_DIR}/build_bind.sh ${MODE} run &> /dev/null &
+        server_pid=$!
 
         # Give the server some time to start properly
         sleep 5
 
         # Capture the output of run_wrk.sh
         avg_throughput=$(taskset -c 3 dnsperf -s $DNS_SERVER -d $QUERY_FILE -l 600 -T 1 | grep "Average Latency" | awk '{$1=""; print $0}')
+        avg_throughput=$(taskset -c 3 dnsperf -s $DNS_SERVER -d $QUERY_FILE -l 600 -T 1 | grep "Queries per second" | awk '{print $4}')
 
         # Stop the server
-	pkill -f sbin/named
-	wait $server_pid 2>/dev/null
+	      pkill -f sbin/named
+	      wait $server_pid 2>/dev/null
 
         # Give some time for the server to stop cleanly
         sleep 2

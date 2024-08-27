@@ -19,8 +19,8 @@ get_throughput() {
     
     if [ "$throughput_source" == "wrk" ]; then
         # Start the server
-	taskset -c 0 ${SCRIPT_DIR}/build_lighttpd.sh ${MODE} run &> /dev/null &
-	server_pid=$!
+	      taskset -c 0 ${SCRIPT_DIR}/build_lighttpd.sh ${MODE} run &> /dev/null &
+	      server_pid=$!
 
         # Give the server some time to start properly
         sleep 5
@@ -29,8 +29,8 @@ get_throughput() {
         avg_throughput=$(taskset -c 3 bash "${SCRIPT_DIR}/run_wrk.sh" | tail -n 1)
 
         # Stop the server
-	pkill -f sbin/lighttpd
-	wait $server_pid 2>/dev/null
+	      pkill -f sbin/lighttpd
+	      wait $server_pid 2>/dev/null
 
         # Give some time for the server to stop cleanly
         sleep 2
