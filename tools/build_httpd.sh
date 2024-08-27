@@ -56,6 +56,7 @@ setup_env() {
     export RANLIB=${LLVM_BIN}/llvm-ranlib
     export NM=${LLVM_BIN}/llvm-nm
     export LDFLAGS='-fuse-ld=gold'
+    export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
     
     case $MODE in
         lto)
@@ -86,6 +87,7 @@ setup_env() {
 	    export AR=${CLEAN_BIN}/llvm-ar
 	    export RANLIB=${CLEAN_BIN}/llvm-ranlib
 	    export NM=${CLEAN_BIN}/llvm-nm
+	    export LD_LIBRARY_PATH=${CLEAN_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
             ;;
         sideasan)
             export CFLAGS="$LTO_FLAGS $ASAN_FLAGS $SIDEASAN_FLAGS"
@@ -196,8 +198,6 @@ EOL
 }
 
 build_app() {
-	export LD_LIBRARY_PATH=${CLEAN_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
-
 	mkdir -p $BUILD_DIR/apache/${MODE}/httpd-2.4.58
 	cd $BUILD_DIR/apache/${MODE}/httpd-2.4.58
 	make distclean
@@ -220,8 +220,6 @@ build_app() {
 
 # Function to run the server
 run_server() {
-    export LD_LIBRARY_PATH=${INSTALL_DIR}/lib/:$OPENSSL_DIR/lib#:$EXPAT_DIR/lib:$PCRE_DIR/lib
-
     taskset -c 0 $APP_DIR/bin/httpd -k start 
 }
 
