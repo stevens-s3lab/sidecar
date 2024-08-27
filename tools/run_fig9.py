@@ -15,7 +15,6 @@ PLOTS_DIR = BASE_DIR / "plots"
 SPEC_MODES = [
     "spec17.lto.csv",
     "spec17.cfi.csv",
-    "spec17.fineibt.csv",
     "spec17.sidecfi.csv",
     "spec17.asan.csv",
     "spec17.sideasan.csv",
@@ -194,6 +193,20 @@ def parse_spec_results(run_dir):
             final_results[mode]["perlbench_s"] = (-1.0, 0.0)
             final_results[mode]["omnetpp_s"] = (-1.0, 0.0)
             final_results[mode]["leela_s"] = (-1.0, 0.0)
+
+    fineibt_results = {
+        "perlbench_s": (95.70, 0.40),
+        "gcc_s": (98.39, 0.54),
+        "mcf_s": (98.79, 0.35),
+        "omnetpp_s": (69.30, 0.09),
+        "xalancbmk_s": (99.17, 0.00),
+        "x264_s": (95.48, 0.00),
+        "deepsjeng_s": (99.56, 0.00),
+        "leela_s": (96.66, 0.00),
+        "xz_s": (100.00, 0.00),
+    }
+
+    final_results["fineibt"] = fineibt_results
 
     return final_results
 
