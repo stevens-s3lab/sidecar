@@ -94,7 +94,7 @@ for command in memtier_commands:
 print("Testing-tool builds completed.")
 
 spec_tar_path = os.path.abspath(
-    os.path.join(script_dir, "../sidecar-benchmarks/cpu2017-patched.tar")
+    os.path.join(script_dir, "../sidecar-benchmarks/cpu2017/cpu2017-patched.tar")
 )
 spec_install_dir = os.path.abspath(
     os.path.join(script_dir, "../sidecar-benchmarks/spec2017")
@@ -119,7 +119,7 @@ except subprocess.CalledProcessError as e:
 
 # Copy config files
 spec_configs_src = os.path.abspath(
-    os.path.join(script_dir, "../sidecar-benchmarks/spec2017_configs/config")
+    os.path.join(script_dir, "../sidecar-benchmarks/cpu2017/config")
 )
 spec_configs_dst = os.path.join(spec_install_dir, "config")
 
