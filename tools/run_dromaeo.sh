@@ -12,7 +12,7 @@ DEPOT_DIR="/home/kleftog/repos_other/depot_tools"
 
 RUN_BENCH_DIR=${CHROMIUM_DIR}/tools/perf/run_benchmark
 CHROMIUM_OUT=${CHROMIUM_DIR}/tools/perf/results.csv
-OUT_PATH=${CUR_DIR}/dromaeo.csv
+OUT_PATH=${RAW_DIR}/${CUR_DIR}/dromaeo.csv
 
 
 labels=("cfi" "sidecfi" "lto")
@@ -39,7 +39,6 @@ for benchmark in "${benchmarks[@]}"; do
 	    --extra-browser-args="--no-sandbox --headless" --story-filter=${story} < /dev/null \
 	    > /dev/null 2>&1
     done
-
-    mv ${CHROMIUM_OUT} ${OUT_PATH}
 done
 
+mv ${CHROMIUM_OUT} ${OUT_PATH}
