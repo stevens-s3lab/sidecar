@@ -12,7 +12,7 @@ DROMAEO_OUT=${RAW_DIR}/${CUR_DIR}/dromaeo.csv
 modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Run the Dromaeo benchmark
-${DROMAEO}
+${DROMAEO} > /dev/null 2>&1
 
 # Initialize variables for geomean calculations
 declare -A lto_sums cfi_sums sidecfi_sums
@@ -39,7 +39,7 @@ total_lto_sum=0
 total_cfi_sum=0
 total_sidecfi_sum=0
 
-# Calculate averages and geomeans
+# Calculate the average for each name+suffix and use them to calculate percentages and geometric means
 for name in "${!lto_sums[@]}"; do
     lto_avg=$(echo "${lto_sums[$name]}" | awk '{sum=0; for (i=1; i<=NF; i++) sum+=$i; print sum/NF}')
     cfi_avg=$(echo "${cfi_sums[$name]}" | awk '{sum=0; for (i=1; i<=NF; i++) sum+=$i; print sum/NF}')
@@ -49,14 +49,18 @@ for name in "${!lto_sums[@]}"; do
         cfi_percentage=$(awk "BEGIN {print ($lto_avg / $cfi_avg) * 100}")
         sidecfi_percentage=$(awk "BEGIN {print ($lto_avg / $sidecfi_avg) * 100}")
 
-        # Update totals
+        # Update the totals
         total_lto_sum=$(awk "BEGIN {print $total_lto_sum + $lto_avg}")
         total_cfi_sum=$(awk "BEGIN {print $total_cfi_sum + $cfi_avg}")
         total_sidecfi_sum=$(awk "BEGIN {print $total_sidecfi_sum + $sidecfi_avg}")
 
         # Add to geomean lists if the percentage is valid
-        geomean_cfi_list+=($cfi_percentage)
-        geomean_sidecfi_list+=($sidecfi_percentage)
+        if (( $(echo "$cfi_percentage < 100" | bc -l) )); then
+            geomean_cfi_list+=($cfi_percentage)
+        fi
+        if (( $(echo "$sidecfi_percentage < 100" | bc -l) )); then
+            geomean_sidecfi_list+=($sidecfi_percentage)
+        fi
     fi
 done
 
@@ -64,12 +68,40 @@ done
 total_cfi_percentage=$(awk "BEGIN {print ($total_lto_sum / $total_cfi_sum) * 100}")
 total_sidecfi_percentage=$(awk "BEGIN {print ($total_lto_sum / $total_sidecfi_sum) * 100}")
 
+# Calculate geometric means of the performance percentages
+geomean_cfi=$(awk -v nums="${geomean_cfi_list[*]}" 'BEGIN {
+    split(nums, arr, " ");
+    prod=1; count=0;
+    for (i in arr) {
+        prod *= arr[i];
+        count++;
+    }
+    if (count > 0) {
+        print exp(log(prod) / count);
+    } else {
+        print "N/A";
+    }
+}')
+geomean_sidecfi=$(awk -v nums="${geomean_sidecfi_list[*]}" 'BEGIN {
+    split(nums, arr, " ");
+    prod=1; count=0;
+    for (i in arr) {
+        prod *= arr[i];
+        count++;
+    }
+    if (count > 0) {
+        print exp(log(prod) / count);
+    } else {
+        print "N/A";
+    }
+}')
+
 # Loop through each mode and print the mode and throughput in CSV format
 for mode in "${modes[@]}"; do
     if [ "$mode" == "cfi" ]; then
-        throughput=$total_cfi_percentage
+        throughput=$geomean_cfi
     elif [ "$mode" == "sidecfi" ]; then
-        throughput=$total_sidecfi_percentage
+        throughput=$geomean_sidecfi
     else
         throughput=0
     fi
