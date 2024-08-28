@@ -12,7 +12,7 @@ CHROMIUM_DIR="/home/kleftog/repos_other/chromium/src"
 RUN_BENCH_DIR=${CHROMIUM_DIR}/tools/perf/run_benchmark
 BROWSER_PATH=${CHROMIUM_DIR}/out_gn/ra_official${path_suffix}/chrome
 CHROMIUM_OUT=${CHROMIUM_DIR}/tools/perf/results.csv
-OUT_PATH=${CUR_DIR}/chromium.csv
+OUT_PATH=${CUR_DIR}/dromaeo.csv
 
 
 labels=("cfi" "sidecfi" "lto")
