@@ -7,7 +7,8 @@ modes=("lto" "cfi" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Choose size of inputs
 #size="ref"
-size="test"
+#size="test"
+size=train
 laps=1
 
 # Define the base directory where the Runxxx directories are located
@@ -45,6 +46,6 @@ for mode in "${modes[@]}"; do
     if [ "$size" == "ref" ]; then
 	grep "refspeed(ref)" "$csv_file" > "$base_dir/$next_run/spec17.$mode.csv"
     else
-	grep "test iteration" "$csv_file" > "$base_dir/$next_run/spec17.$mode.csv"
+	grep "${size} iteration" "$csv_file" > "$base_dir/$next_run/spec17.$mode.csv"
     fi
 done
