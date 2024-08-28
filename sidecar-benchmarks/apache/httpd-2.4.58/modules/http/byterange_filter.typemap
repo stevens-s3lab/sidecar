@@ -1,5 +1,0 @@
-ap_byterange_filter 8095
-ap_set_byterange 7698
-send_416 8095
-use_range_x 6250
-copy_brigade_range 5389

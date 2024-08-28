@@ -1,6 +1,0 @@
-abort_on_oom 14821
-putline 14378
-get_password 10103
-mkhash 10103
-parse_common_options 3927
-generate_salt 10678

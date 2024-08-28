@@ -1,1 +1,0 @@
--m record -c named.conf -d 1 -D fetchlimit-ns3 -g -T maxcachesize=2097152
