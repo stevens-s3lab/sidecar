@@ -12,8 +12,8 @@ WRK_DIR=${ROOT_DIR}/install/tools
 FILE_SIZE="100KB"
 
 # Number of iterations
-iterations=5
-duration=60
+iterations=3
+duration=10
 
 # Variables for throughput calculation
 total_throughput=0
