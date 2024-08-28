@@ -16,8 +16,8 @@ throughput=0
 #throughput_source="rand"
 throughput_source="wrk"  # or "rand"
 
-iterations=5
-duration=60
+iterations=3
+duration=10
 
 # Function to get the throughput
 get_throughput() {
@@ -58,8 +58,6 @@ for mode in "${modes[@]}"; do
         # Run the workload for lto mode and save its throughput
         lto_throughput=$(get_throughput "$mode")
     else
-        export CFI_MODE=$mode
-
         if [ "$mode" == "fineibt" ]; then
             throughput=0
         else
@@ -68,6 +66,11 @@ for mode in "${modes[@]}"; do
             # Calculate throughput as (current throughput / lto_throughput) * 100
 	    throughput=$(awk -v ct="$current_throughput" -v lt="$lto_throughput" 'BEGIN {perf=int(ct / lt * 100); if (perf > 100) perf = 100; print perf}')
 
+        fi
+
+        # if through for safestack is 0, then set it to -1
+        if [ "$mode" == "safestack" ] && [ "$throughput" == "0" ]; then
+            throughput=-1
         fi
 
         echo "$mode,$throughput"
