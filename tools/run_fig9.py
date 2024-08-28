@@ -7,11 +7,20 @@ from pathlib import Path
 
 import numpy as np
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
 # Constants for directory structure
-BASE_DIR = Path("../sidecar-results")
+BASE_DIR = Path(script_dir) / "../sidecar-results"
 RAW_DIR = BASE_DIR / "raw"
 PARSED_DIR = BASE_DIR / "parsed"
 PLOTS_DIR = BASE_DIR / "plots"
+
+# Scripts
+spec17_path = Path(script_dir) / "run_spec17.sh"
+wrk_httpd_path = Path(script_dir) / "run_wrk_httpd.sh"
+wrk_lighttpd_path = Path(script_dir) / "run_wrk_lighttpd.sh"
+memtier_memcached_path = Path(script_dir) / "run_memtier_memcached.sh"
+dnsperf_bind_path = Path(script_dir) / "run_dnsperf_bind.sh"
 
 # Spec CSV file modes
 SPEC_MODES = [
@@ -61,14 +70,14 @@ def setup_directories():
 def execute_spec17(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_spec17.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", spec17_path], stdout=subprocess.PIPE, text=True
     )
 
 
 def execute_httpd(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_wrk_httpd.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", wrk_httpd_path], stdout=subprocess.PIPE, text=True
     )
 
     # Write the output of the bash script to the file
@@ -79,7 +88,7 @@ def execute_httpd(file_path):
 def execute_lighttpd(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_wrk_lighttpd.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", wrk_lighttpd_path], stdout=subprocess.PIPE, text=True
     )
 
     # Write the output of the bash script to the file
@@ -90,7 +99,7 @@ def execute_lighttpd(file_path):
 def execute_memcached(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_memtier_memcached.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", memtier_memcached_path], stdout=subprocess.PIPE, text=True
     )
 
     # Write the output of the bash script to the file
@@ -101,7 +110,7 @@ def execute_memcached(file_path):
 def execute_bind(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_dnsperf_bind.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", dnsperf_bind_path], stdout=subprocess.PIPE, text=True
     )
 
     # Write the output of the bash script to the file
