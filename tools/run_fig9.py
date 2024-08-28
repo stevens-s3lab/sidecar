@@ -21,6 +21,7 @@ wrk_httpd_path = Path(script_dir) / "run_wrk_httpd.sh"
 wrk_lighttpd_path = Path(script_dir) / "run_wrk_lighttpd.sh"
 memtier_memcached_path = Path(script_dir) / "run_memtier_memcached.sh"
 dnsperf_bind_path = Path(script_dir) / "run_dnsperf_bind.sh"
+dromaeo_path = Path(script_dir) / "run_dromaeo.sh"
 
 # Spec CSV file modes
 SPEC_MODES = [
@@ -121,7 +122,7 @@ def execute_bind(file_path):
 def execute_chromium(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_dromaeo.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", dromaeo_path], stdout=subprocess.PIPE, text=True
     )
 
 
