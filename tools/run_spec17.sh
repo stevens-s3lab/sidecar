@@ -6,7 +6,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 modes=("lto" "cfi" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Choose size of inputs
-size="ref"
+#size="ref"
+size="test"
+laps=1
 
 # Define the base directory where the Runxxx directories are located
 base_dir="$SCRIPT_DIR/../sidecar-results/raw"
@@ -32,10 +34,15 @@ for mode in "${modes[@]}"; do
 
     # Run the spec17 benchmark
     taskset -c 0 runcpu --action=run --config=$mode --size=$size --label=$mode \
-      --iterations=1 --threads=1 --tune=base -define gcc_dir=${llvm_path} --output_format=csv \
+      --iterations=${laps} --threads=1 --tune=base -define gcc_dir=${llvm_path} --output_format=csv \
       --noreportable speedint
 
     # Find the latest csv file in spec17 directory under result
     csv_file=$(ls -1t "$spec17_dir/result/"*intspeed*.csv | head -n 1)
-    grep "refspeed(ref)" "$csv_file" > "$base_dir/$next_run/$mode.csv"
+
+    if [ "$size" == "ref" ]; then
+	grep "refspeed(ref)" "$csv_file" > "$base_dir/$next_run/spec17.$mode.csv"
+    else
+	grep "test iteration" "$csv_file" > "$base_dir/$next_run/spec17.$mode.csv"
+    fi
 done

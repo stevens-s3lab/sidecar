@@ -8,9 +8,9 @@ CUR_DIR=$(ls -1 "${RAW_DIR}" | grep -E '^Run[0-9]{3}$' | sort | tail -n 1)
 
 # TODO: move this in sidecar
 CHROMIUM_DIR="/home/kleftog/repos_other/chromium/src"
+DEPOT_DIR="/home/kleftog/repos_other/depot_tools"
 
 RUN_BENCH_DIR=${CHROMIUM_DIR}/tools/perf/run_benchmark
-BROWSER_PATH=${CHROMIUM_DIR}/out_gn/ra_official${path_suffix}/chrome
 CHROMIUM_OUT=${CHROMIUM_DIR}/tools/perf/results.csv
 OUT_PATH=${CUR_DIR}/dromaeo.csv
 
@@ -22,11 +22,14 @@ story="dom-traverse"
 
 iterations=1
 
+export PATH=$DEPOT_DIR:$PATH
+
 # Loop through each benchmark, label, and path, running the benchmark
 for benchmark in "${benchmarks[@]}"; do
     for i in "${!labels[@]}"; do
         label=${labels[$i]}
         path_suffix=${paths[$i]}
+	BROWSER_PATH=${CHROMIUM_DIR}/out_gn/ra_official${path_suffix}/chrome
 
         taskset -c 0 xvfb-run -s "-screen 0 1024x768x24" ${RUN_BENCH_DIR} \
             --browser=exact \
