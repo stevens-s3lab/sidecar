@@ -18,10 +18,10 @@ SPEC_MODES = [
     "spec17.lto.csv",
     "spec17.cfi.csv",
     "spec17.sidecfi.csv",
+    "spec17.safestack.csv",
+    "spec17.sidestack.csv",
     "spec17.asan.csv",
     "spec17.sideasan.csv",
-    "spec17.scs.csv",
-    "spec17.sidestack.csv",
 ]
 
 RAW_FILES = [
@@ -194,8 +194,8 @@ def parse_spec_results(run_dir):
     for mode, data in mode_data.items():
         final_results[mode] = calculate_performance_over_lto(lto_data, data)
 
-        # if mode == "scs" exclude the ones that didn't run
-        if mode == "scs":
+        # if mode == "safestack" exclude the ones that didn't run
+        if mode == "safestack":
             final_results[mode]["perlbench_s"] = (-1.0, 0.0)
             final_results[mode]["omnetpp_s"] = (-1.0, 0.0)
             final_results[mode]["leela_s"] = (-1.0, 0.0)
@@ -239,7 +239,7 @@ def save_parsed_spec_results(final_results):
             "cfi",
             "fineibt",
             "sidecfi",
-            "scs",
+            "safestack",
             "sidestack",
             "asan",
             "sideasan",
@@ -260,10 +260,10 @@ def save_parsed_spec_results(final_results):
                         row.extend(["-1.0", "0.0"])
                 writer.writerow(row)
 
-        # Calculate *geomean excluding perlbench_s, omnetpp_s, and leela_s for scs and sidestack
+        # Calculate *geomean excluding perlbench_s, omnetpp_s, and leela_s for safestack and sidestack
         geomean_values_star = {}
         for mode in mode_order:
-            if mode in ["scs", "sidestack"]:
+            if mode in ["safestack", "sidestack"]:
                 mode_geomeans = []
                 for benchmark in benchmark_order:
                     if benchmark not in ["perlbench_s", "omnetpp_s", "leela_s"]:
@@ -280,10 +280,10 @@ def save_parsed_spec_results(final_results):
             geomean_row_star.append("0.00")  # Std dev is 0 for geomean
         writer.writerow(geomean_row_star)
 
-        # Calculate geomean for all modes except scs
+        # Calculate geomean for all modes except safestack
         geomean_values = {}
         for mode in mode_order:
-            if mode == "scs":
+            if mode == "safestack":
                 geomean_values[mode] = 0.0
             else:
                 mode_geomeans = []
