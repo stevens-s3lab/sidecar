@@ -9,6 +9,49 @@ We implemented an x86-64 and aarch64 Linux kernel driver to
 facilitate communication between the monitors and the processor's debugging infrastructure
 and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatible code that can be used with the monitors._
 
+## Project Structure
+
+```bash
+.
+├── README.md                    # Project overview and instructions
+├── sidecar-driver               # Kernel drivers for different architectures
+│   ├── aarch64                  # Drivers for AArch64 architecture
+│   └── x86-64                   # Drivers for x86-64 architecture
+├── sidecar-examples             # Example implementations using SideCar
+│   ├── sideasan
+│   ├── sidecfi
+│   └── sidestack
+├── sidecar-llvm                 # Modified LLVM source and related tools
+│   ├── clang
+│   ├── clang-tools-extra
+│   ├── compiler-rt
+│   ├── debuginfo-tests
+│   ├── flang
+│   ├── libc
+│   ├── libclc
+│   ├── libcxx
+│   ├── libcxxabi
+│   ├── libunwind
+│   ├── lld
+│   ├── lldb
+│   ├── llvm
+│   ├── mlir
+│   ├── openmp
+│   ├── parallel-libs
+│   ├── polly
+│   ├── pstl
+│   ├── runtimes
+│   ├── utils
+│   └── README.md
+├── sidecar-monitors             # Monitors for SideCar components
+│   ├── sideasan
+│   ├── sidecfi
+│   ├── sideguard
+│   └── sidestack
+└── tools                        # Scripts and tools for setup and experiments
+    └── install.sh               # Installation script
+```
+
 ## Installation
 
 ### SideCar Linux Kernel Driver
