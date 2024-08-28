@@ -24,6 +24,8 @@ cd "$spec17_dir" || exit
 source ./shrc
 cd "$SCRIPT_DIR" || exit
 
+export ASAN_OPTIONS='detect_leaks=0'
+
 # Loop through each mode and print the mode and throughput in CSV format
 for mode in "${modes[@]}"; do
     if [ "$mode" == "asan" ]; then
