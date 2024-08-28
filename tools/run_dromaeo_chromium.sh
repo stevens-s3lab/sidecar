@@ -12,7 +12,7 @@ DROMAEO_OUT=${RAW_DIR}/${CUR_DIR}/dromaeo.csv
 modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Run the Dromaeo benchmark
-${DROMAEO} > /dev/null 2>&1
+${DROMAEO}
 
 # Initialize variables for geomean calculations
 declare -A lto_sums cfi_sums sidecfi_sums
