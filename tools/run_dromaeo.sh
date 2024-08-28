@@ -33,7 +33,8 @@ for benchmark in "${benchmarks[@]}"; do
             --browser-executable=${BROWSER_PATH} \
             --results-label=${label} --output-format csv \
             --pageset-repeat=${iterations} ${benchmark}  \
-	    --extra-browser-args="--no-sandbox --headless" --story-filter=${story} < /dev/null
+	    --extra-browser-args="--no-sandbox --headless" --story-filter=${story} < /dev/null \
+	    > /dev/null 2>&1
     done
 
     mv ${CHROMIUM_OUT} ${OUT_PATH}
