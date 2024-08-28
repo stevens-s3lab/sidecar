@@ -22,27 +22,6 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 │   ├── sidecfi                  # Example with SideCFI enabled
 │   └── sidestack                # Example with SideStack enabled
 ├── sidecar-llvm                 # Modified LLVM source and related tools
-│   ├── clang
-│   ├── clang-tools-extra
-│   ├── compiler-rt
-│   ├── debuginfo-tests
-│   ├── flang
-│   ├── libc
-│   ├── libclc
-│   ├── libcxx
-│   ├── libcxxabi
-│   ├── libunwind
-│   ├── lld
-│   ├── lldb
-│   ├── llvm
-│   ├── mlir
-│   ├── openmp
-│   ├── parallel-libs
-│   ├── polly
-│   ├── pstl
-│   ├── runtimes
-│   ├── utils
-│   └── README.md
 ├── sidecar-monitors             # Monitors for SideCar components
 │   ├── sideasan                 # Monitor for SideASan
 │   ├── sidecfi                  # Monitor for SideCFI
