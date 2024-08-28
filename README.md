@@ -44,12 +44,12 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 │   ├── utils
 │   └── README.md
 ├── sidecar-monitors             # Monitors for SideCar components
-│   ├── sideasan
-│   ├── sidecfi
-│   ├── sideguard
-│   └── sidestack
+│   ├── sideasan		 # Monitor for SideASan
+│   ├── sidecfi			 # Monitor for SideCFI
+│   ├── sideguard		 # Monitor for SideGuard
+│   └── sidestack		 # Monitor for SideStack
 └── tools                        # Scripts and tools for setup and experiments
-    └── install.sh               # Installation script
+    └── install.sh               # LLVM installation script
 ```
 
 ## Installation
