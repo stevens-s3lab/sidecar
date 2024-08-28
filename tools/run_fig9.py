@@ -1,6 +1,8 @@
 import csv
+import math
 import os
 import subprocess
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -110,7 +112,7 @@ def execute_bind(file_path):
 def execute_chromium(file_path):
     # Call the bash script and capture its output
     result = subprocess.run(
-        ["bash", "run_dromaeo_chromium.sh"], stdout=subprocess.PIPE, text=True
+        ["bash", "run_dromaeo.sh"], stdout=subprocess.PIPE, text=True
     )
 
     # Write the output of the bash script to the file
@@ -350,13 +352,116 @@ def parse_bind(bind_file):
 
 
 def parse_chromium(chromium_file):
+    # Initialize dictionaries to store LTO, CFI, and SIDECFI averages
+    lto_sums = defaultdict(list)
+    cfi_sums = defaultdict(list)
+    sidecfi_sums = defaultdict(list)
+
+    # Open the CSV file and read its content
+    with open(chromium_file, mode="r") as file:
+        csv_reader = csv.DictReader(file)
+
+        for row in csv_reader:
+            name = row["name"]
+            story = row["stories"]
+            avg = float(row["avg"])
+            label = row["displayLabel"]
+
+            # Extract the benchmark-specific part from the story
+            if story:
+                suffix = story.split("?")[1]
+                refined_name = f"{name}+{suffix}"
+            else:
+                refined_name = name
+
+            # Store the averages based on the displayLabel (lto, cfi, or sidecfi)
+            if label == "lto":
+                lto_sums[refined_name].append(avg)
+            elif label == "cfi":
+                cfi_sums[refined_name].append(avg)
+            elif label == "sidecfi":
+                sidecfi_sums[refined_name].append(avg)
+
+    # Initialize variables to calculate totals and geometric mean
+    total_lto_sum = 0
+    total_cfi_sum = 0
+    total_sidecfi_sum = 0
+    geomean_cfi_list = []
+    geomean_sidecfi_list = []
+
     values = []
-    with open(chromium_file, "r") as f:
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) == 2:
-                mode, value = parts
-                values.append(float(value))
+
+    # Calculate the average for each name+suffix and print the results
+    for name in lto_sums:
+        lto_avg = sum(lto_sums[name]) / len(lto_sums[name]) if lto_sums[name] else 0
+        cfi_avg = (
+            sum(cfi_sums.get(name, [])) / len(cfi_sums.get(name, []))
+            if cfi_sums.get(name)
+            else None
+        )
+        sidecfi_avg = (
+            sum(sidecfi_sums.get(name, [])) / len(sidecfi_sums.get(name, []))
+            if sidecfi_sums.get(name)
+            else None
+        )
+
+        if cfi_avg is not None and sidecfi_avg is not None:
+            cfi_percentage = (lto_avg / cfi_avg) * 100 if lto_avg != 0 else float("inf")
+            sidecfi_percentage = (
+                (lto_avg / sidecfi_avg) * 100 if lto_avg != 0 else float("inf")
+            )
+            print(
+                f"{name} {lto_avg:.2f} {cfi_avg:.2f} {sidecfi_avg:.2f} {cfi_percentage:.2f}% {sidecfi_percentage:.2f}%"
+            )
+
+            # Update the totals
+            total_lto_sum += lto_avg
+            total_cfi_sum += cfi_avg
+            total_sidecfi_sum += sidecfi_avg
+
+            if cfi_percentage < 100 and sidecfi_percentage < 100:
+                geomean_cfi_list.append(cfi_percentage)
+                geomean_sidecfi_list.append(sidecfi_percentage)
+        else:
+            print(
+                f"{name} {lto_avg:.2f} {cfi_avg:.2f if cfi_avg is not None else 'N/A'} {sidecfi_avg:.2f if sidecfi_avg is not None else 'N/A'} N/A N/A"
+            )
+
+    # Calculate total percentages
+    total_cfi_percentage = (
+        (total_lto_sum / total_cfi_sum) * 100 if total_lto_sum != 0 else float("inf")
+    )
+    total_sidecfi_percentage = (
+        (total_lto_sum / total_sidecfi_sum) * 100
+        if total_lto_sum != 0
+        else float("inf")
+    )
+
+    # Calculate geometric means of percentages
+    geomean_cfi = (
+        math.exp(
+            math.fsum(math.log(p) for p in geomean_cfi_list) / len(geomean_cfi_list)
+        )
+        if geomean_cfi_list
+        else None
+    )
+    geomean_sidecfi = (
+        math.exp(
+            math.fsum(math.log(p) for p in geomean_sidecfi_list)
+            / len(geomean_sidecfi_list)
+        )
+        if geomean_sidecfi_list
+        else None
+    )
+
+    # Add the calculated geomeans to the values list for returning
+    values.append(total_cfi_percentage if total_cfi_percentage != float("inf") else 0)
+    values.append(
+        total_sidecfi_percentage if total_sidecfi_percentage != float("inf") else 0
+    )
+    values.append(geomean_cfi if geomean_cfi is not None else 0)
+    values.append(geomean_sidecfi if geomean_sidecfi is not None else 0)
+
     return values
 
 
