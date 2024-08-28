@@ -12,7 +12,7 @@ DROMAEO_OUT=${RAW_DIR}/${CUR_DIR}/dromaeo.csv
 modes=("lto" "cfi" "fineibt" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Run the Dromaeo benchmark
-${DROMAEO}
+${DROMAEO} > /dev/null 2>&1
 
 # Initialize variables for geomean calculations
 declare -A lto_sums cfi_sums sidecfi_sums
@@ -68,5 +68,65 @@ for name in "${!lto_sums[@]}"; do
 done
 
 # Calculate total percentages
-if [[ "$total_cfi_sum" != "0" ]]
+if [[ "$total_cfi_sum" != "0" ]]; then
+    total_cfi_percentage=$(awk "BEGIN {print ($total_lto_sum / $total_cfi_sum) * 100}")
+else
+    total_cfi_percentage="N/A"
+fi
+
+if [[ "$total_sidecfi_sum" != "0" ]]; then
+    total_sidecfi_percentage=$(awk "BEGIN {print ($total_lto_sum / $total_sidecfi_sum) * 100}")
+else
+    total_sidecfi_percentage="N/A"
+fi
+
+# Calculate geometric means of the performance percentages
+if [[ ${#geomean_cfi_list[@]} -gt 0 ]]; then
+    geomean_cfi=$(awk -v nums="${geomean_cfi_list[*]}" 'BEGIN {
+        split(nums, arr, " ");
+        prod=1; count=0;
+        for (i in arr) {
+            prod *= arr[i];
+            count++;
+        }
+        if (count > 0) {
+            print exp(log(prod) / count);
+        } else {
+            print "N/A";
+        }
+    }')
+else
+    geomean_cfi="N/A"
+fi
+
+if [[ ${#geomean_sidecfi_list[@]} -gt 0 ]]; then
+    geomean_sidecfi=$(awk -v nums="${geomean_sidecfi_list[*]}" 'BEGIN {
+        split(nums, arr, " ");
+        prod=1; count=0;
+        for (i in arr) {
+            prod *= arr[i];
+            count++;
+        }
+        if (count > 0) {
+            print exp(log(prod) / count);
+        } else {
+            print "N/A";
+        }
+    }')
+else
+    geomean_sidecfi="N/A"
+fi
+
+# Loop through each mode and print the mode and throughput in CSV format
+for mode in "${modes[@]}"; do
+    if [ "$mode" == "cfi" ]; then
+        throughput=$geomean_cfi
+    elif [ "$mode" == "sidecfi" ]; then
+        throughput=$geomean_sidecfi
+    else
+        throughput=0
+    fi
+
+    echo "$mode,$throughput"
+done
 
