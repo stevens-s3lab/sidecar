@@ -12,13 +12,14 @@ DEPOT_DIR="/home/kleftog/repos_other/depot_tools"
 
 RUN_BENCH_DIR=${CHROMIUM_DIR}/tools/perf/run_benchmark
 CHROMIUM_OUT=${CHROMIUM_DIR}/tools/perf/results.csv
-OUT_PATH=${RAW_DIR}/${CUR_DIR}/dromaeo.csv
+OUT_PATH=${RAW_DIR}/${CUR_DIR}/chromium.csv
 
 
 labels=("cfi" "sidecfi" "lto")
-paths=("_cfi" "_sidecfi" "_clean")
+paths=("_cfi" "_sidecfi" "")
 benchmarks=("dromaeo")
-story="dom-traverse"
+#story="dom-traverse"
+story="dom-attr"
 
 iterations=1
 
