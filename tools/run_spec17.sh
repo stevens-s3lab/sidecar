@@ -6,9 +6,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 modes=("lto" "cfi" "sidecfi" "safestack" "sidestack" "asan" "sideasan")
 
 # Choose size of inputs
-#size="ref"
+size="ref"
 #size="test"
-size=train
+#size=train
 laps=1
 
 # Define the base directory where the Runxxx directories are located

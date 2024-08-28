@@ -16,7 +16,7 @@ throughput=0
 #throughput_source="rand"
 throughput_source="wrk"  # or "rand"
 
-iterations=1
+iterations=10
 duration=60
 
 # Function to get the throughput
