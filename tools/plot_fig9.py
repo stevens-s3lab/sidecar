@@ -154,7 +154,7 @@ def plot_vertical_grouped_barchart(benchmarks, overheads, std_devs, labels, titl
     output_dir = "../sidecar-results/plots/"
     os.makedirs(output_dir, exist_ok=True)
 
-    plt.savefig(os.path.join(output_dir, "perf_spec17.pdf"), bbox_inches="tight")
+    plt.savefig(os.path.join(output_dir, "figure9.pdf"), bbox_inches="tight")
     # plt.show()
 
 
