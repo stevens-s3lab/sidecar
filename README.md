@@ -18,9 +18,9 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 │   ├── aarch64                  # Drivers for AArch64 architecture
 │   └── x86-64                   # Drivers for x86-64 architecture
 ├── sidecar-examples             # Example implementations using SideCar
-│   ├── sideasan
-│   ├── sidecfi
-│   └── sidestack
+│   ├── sideasan                 # Example with SideASan enabled
+│   ├── sidecfi                  # Example with SideCFI enabled
+│   └── sidestack                # Example with SideStack enabled
 ├── sidecar-llvm                 # Modified LLVM source and related tools
 │   ├── clang
 │   ├── clang-tools-extra
@@ -44,10 +44,10 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 │   ├── utils
 │   └── README.md
 ├── sidecar-monitors             # Monitors for SideCar components
-│   ├── sideasan		 # Monitor for SideASan
-│   ├── sidecfi			 # Monitor for SideCFI
-│   ├── sideguard		 # Monitor for SideGuard
-│   └── sidestack		 # Monitor for SideStack
+│   ├── sideasan                 # Monitor for SideASan
+│   ├── sidecfi                  # Monitor for SideCFI
+│   ├── sideguard                # Monitor for SideGuard
+│   └── sidestack                # Monitor for SideStack
 └── tools                        # Scripts and tools for setup and experiments
     └── install.sh               # LLVM installation script
 ```
