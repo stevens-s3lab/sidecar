@@ -115,10 +115,6 @@ def execute_chromium(file_path):
         ["bash", "run_dromaeo.sh"], stdout=subprocess.PIPE, text=True
     )
 
-    # Write the output of the bash script to the file
-    with open(file_path, "w") as f:
-        f.write(result.stdout)
-
 
 def run_placeholder_tasks(run_dir):
     # Call each benchmark's execution function
@@ -141,9 +137,17 @@ def parse_spec_mode(file_path):
             if benchmark == "exchange2_s":
                 continue
 
+            if row[2].strip():
+                try:
+                    value = float(row[2])
+                except ValueError:
+                    value = 0.0  # Assign 0 if conversion fails
+            else:
+                value = 0.0 
+
             if benchmark not in spec_data:
                 spec_data[benchmark] = []
-            spec_data[benchmark].append(float(row[2]))  # Est. Base Ratio (3rd index)
+            spec_data[benchmark].append(value)  # Est. Base Ratio (3rd index)
 
     avg_stddev_data = {}
     for benchmark, results in spec_data.items():
@@ -410,9 +414,9 @@ def parse_chromium(chromium_file):
             sidecfi_percentage = (
                 (lto_avg / sidecfi_avg) * 100 if lto_avg != 0 else float("inf")
             )
-            print(
-                f"{name} {lto_avg:.2f} {cfi_avg:.2f} {sidecfi_avg:.2f} {cfi_percentage:.2f}% {sidecfi_percentage:.2f}%"
-            )
+            #print(
+            #    f"{name} {lto_avg:.2f} {cfi_avg:.2f} {sidecfi_avg:.2f} {cfi_percentage:.2f}% {sidecfi_percentage:.2f}%"
+            #)
 
             # Update the totals
             total_lto_sum += lto_avg
@@ -422,10 +426,6 @@ def parse_chromium(chromium_file):
             if cfi_percentage < 100 and sidecfi_percentage < 100:
                 geomean_cfi_list.append(cfi_percentage)
                 geomean_sidecfi_list.append(sidecfi_percentage)
-        else:
-            print(
-                f"{name} {lto_avg:.2f} {cfi_avg:.2f if cfi_avg is not None else 'N/A'} {sidecfi_avg:.2f if sidecfi_avg is not None else 'N/A'} N/A N/A"
-            )
 
     # Calculate total percentages
     total_cfi_percentage = (
@@ -439,28 +439,35 @@ def parse_chromium(chromium_file):
 
     # Calculate geometric means of percentages
     geomean_cfi = (
-        math.exp(
-            math.fsum(math.log(p) for p in geomean_cfi_list) / len(geomean_cfi_list)
-        )
+            round(
+                math.exp(
+                    math.fsum(math.log(p) for p in geomean_cfi_list) / len(geomean_cfi_list)
+                ),
+                2
+            )
         if geomean_cfi_list
         else None
     )
     geomean_sidecfi = (
-        math.exp(
-            math.fsum(math.log(p) for p in geomean_sidecfi_list)
-            / len(geomean_sidecfi_list)
+        round(
+            math.exp(
+                math.fsum(math.log(p) for p in geomean_sidecfi_list)
+                / len(geomean_sidecfi_list)
+            ),
+            2
         )
         if geomean_sidecfi_list
         else None
     )
 
     # Add the calculated geomeans to the values list for returning
-    values.append(total_cfi_percentage if total_cfi_percentage != float("inf") else 0)
-    values.append(
-        total_sidecfi_percentage if total_sidecfi_percentage != float("inf") else 0
-    )
     values.append(geomean_cfi if geomean_cfi is not None else 0)
+    values.append(0)
     values.append(geomean_sidecfi if geomean_sidecfi is not None else 0)
+    values.append(0)
+    values.append(0)
+    values.append(0)
+    values.append(0)
 
     return values
 
