@@ -28,6 +28,7 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 │   ├── sideguard                # Monitor for SideGuard
 │   └── sidestack                # Monitor for SideStack
 └── tools                        # Scripts and tools for setup and experiments
+    ├── gen_tp.sh                # Generate typemaps for SideCFI
     └── install.sh               # LLVM installation script
 ```
 
