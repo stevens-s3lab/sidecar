@@ -237,7 +237,7 @@ static int stop_pt(void *arg)
 				" status %llx\n", raw_smp_processor_id(), 
 				ctl, status);
 	if (status & PT_ERROR) {
-		pr_info("cpu %d, error happened: status %llx\n",
+		debugk("cpu %d, error happened: status %llx\n",
 				raw_smp_processor_id(), status);
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0);
 	}
@@ -892,7 +892,7 @@ handler_bh(struct work_struct *work)
 	}
 
 	/* resume asan process */
-	pr_info("START PROCESS %d\n", dev->pid);
+	debugk("START PROCESS %d\n", dev->pid);
 	kill_pid(find_vpid(dev->pid), SIGCONT, 1);
 
 	dev->process_stopped = 0;
@@ -922,16 +922,16 @@ static int ptw_nmi(unsigned int cmd, struct pt_regs *regs)
 
 	topa_writer_get(dev);
 	dist = rdwr_pagedist(dev);
-	pr_info("NMI: reader %hu, writer %hu, dist %d\n",
+	debugk("NMI: reader %hu, writer %hu, dist %d\n",
 			*dev->rpage, *dev->wpage, dist);
 
 	/* Check reader and stop process if needed */
 	if (dist <= OFLOW_BUFFERS_THRES) {
-		pr_err("Ooops overflow\n");
+		debugk("Ooops overflow\n");
 	} else if (dev->conf.nmi_freq > 0) {
 		if (dist <= MIN_AVAIL_BUFFERS) {
 			/* STOP PROCESS */
-			pr_info("STOP PROCESS %d\n", dev->pid);
+			debugk("STOP PROCESS %d\n", dev->pid);
 			kill_pid(find_vpid(dev->pid), SIGSTOP, 1);
 			dev->process_stopped++;
 
