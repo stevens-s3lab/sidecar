@@ -992,6 +992,10 @@ out_buffers:
 
 static void ptw_exit(void)
 {
+  for_each_online_cpu(cpu) {
+    ptw_cpu_teardown(cpu);
+  }
+
 	misc_deregister(&ptw_miscdev);
 	unregister_nmi_handler(NMI_LOCAL, PTW_DEV_NAME);
 	if (ptw_hotplug_state >= 0)
