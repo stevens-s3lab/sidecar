@@ -553,11 +553,12 @@ static long ptw_ioctl(struct file *filp, unsigned int cmd,
 	case PTW_ENABLE:
 		/* set global for traced cpu */
 		ptw_asan_cpu = get_cpu();
-		wake_up_interruptible(&wq);
 
 		/* set pid */
 		dev = per_cpu(cpu_dev, ptw_asan_cpu);
 		dev->pid = current->pid;
+
+		wake_up_interruptible(&wq);
 
 		/* start pt */
 		start_pt(dev);
@@ -755,6 +756,10 @@ static int ptw_mmap(struct file *filp, struct vm_area_struct *vma)
 	u64 *topa;
 
 	dev = per_cpu(cpu_dev, ptw_asan_cpu);
+  if (!dev) {
+    pr_err("Invalid dev pointer\n");
+    return -EINVAL;
+  }
 
 	mutex_lock(&dev->lock);
 
