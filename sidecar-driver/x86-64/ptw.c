@@ -755,7 +755,7 @@ static int ptw_mmap(struct file *filp, struct vm_area_struct *vma)
 	phys_addr_t vma_target;
 	u64 *topa;
 
-	dev = per_cpu(cpu_dev, ptw_asan_cpu);
+  dev = per_cpu(cpu_dev, ptw_asan_cpu);
   if (!dev) {
     pr_err("Invalid dev pointer\n");
     return -EINVAL;
@@ -997,6 +997,7 @@ out_buffers:
 
 static void ptw_exit(void)
 {
+  int cpu;
   for_each_online_cpu(cpu) {
     ptw_cpu_teardown(cpu);
   }
