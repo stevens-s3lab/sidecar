@@ -141,6 +141,8 @@ read_topa(void)
 				strerror(errno));
 		exit(EXIT_FAILURE); 
 	}
+
+  i = process_trace_data(local_base, 0, buf_offset, false, false, true);
 }
 
 void signal_handler(int n, siginfo_t *info, void *unused) {
