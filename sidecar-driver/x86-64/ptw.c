@@ -579,6 +579,11 @@ static long ptw_ioctl(struct file *filp, unsigned int cmd,
 
 		return 0;
 	case PTW_SET_MID:
+		/* set monitor id */
+    dev->mid = current->pid;
+		debugk("monitor %d set\n", 				
+				dev->mid);
+
 		if (ptw_asan_cpu == -1) {
 			debugk("waiting for producer\n");
 
@@ -586,13 +591,7 @@ static long ptw_ioctl(struct file *filp, unsigned int cmd,
 			wait_event_interruptible(wq, ptw_asan_cpu > -1);
 			if (ptw_asan_cpu == -1) return 0;
 		} 
-
-
-		/* set monitor id */
 		dev = per_cpu(cpu_dev, ptw_asan_cpu);
-		dev->mid = current->pid;
-		debugk("monitor %d set\n", 				
-				dev->mid);
 
 		return 0;
 	case PTW_GET_TOPA_SZ:
