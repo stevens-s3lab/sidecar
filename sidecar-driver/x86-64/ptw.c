@@ -708,9 +708,10 @@ static int ptw_release(struct inode *inode, struct file *filp)
 	dev = per_cpu(cpu_dev, ptw_asan_cpu);
 
 	mutex_lock(&dev->lock);
-	debugk("device closed\n");
+	debugk("device closed ");
 
 	if (dev->pid == current->pid) {
+    debugk("by producer %d\n", dev->pid);
 		dev->pid = -1;
 		stop_pt(NULL);
 
@@ -731,6 +732,7 @@ static int ptw_release(struct inode *inode, struct file *filp)
 			ptw_asan_cpu = -1;
 		}
 	} else if (dev->mid == current->pid) {
+    debugk("by monitor %d\n", dev->mid);
 		if (dev->pid == -1) {
 			ptw_asan_cpu = -1;
 		}
