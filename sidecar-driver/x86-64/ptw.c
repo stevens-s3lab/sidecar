@@ -803,6 +803,11 @@ static int ptw_mmap(struct file *filp, struct vm_area_struct *vma)
 
 		topa = dev->topa;
 		for (i = 0; i < num; i++) {
+      if (topa[i] == 0) {  // Avoid mapping a NULL page.
+        pr_err("topa[%d] is NULL\n", i);
+        err = -EINVAL;
+        break;
+      }
 			err = remap_pfn_range(vma,
 					vma->vm_start + i * buffer_size,
 					topa[i] >> PTW_TOPA_PAGE_SHIFT,
