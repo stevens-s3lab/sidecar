@@ -568,7 +568,8 @@ static long ptw_ioctl(struct file *filp, unsigned int cmd,
 				dev->pid,
 				ptw_asan_cpu);
 
-    wait_event_interruptible(wq, dev->mid != -1);
+	  if (pause)
+      wait_event_interruptible(wq, dev->mid != -1);
 
 		return 0;
 	case PTW_DISABLE:
