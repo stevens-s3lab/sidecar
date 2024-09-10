@@ -643,10 +643,6 @@ main(int argc, char *argv[])
 	/* set up signal handler */
 	sigaction(SIGUSR1, &sig, NULL);
 
-	printf("This is the SideCFI monitor for application %s\n", argv[1]);
-	printf("Processing  : Concurrent\n");
-	printf("PT Decoder  : Custom\n");
-
 	/* initialize for trace capturing */
 	pt_init();
 

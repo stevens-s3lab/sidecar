@@ -428,10 +428,6 @@ main(int argc, char *argv[])
 	/* set up signal handler */
 	sigaction(SIGUSR1, &sig, NULL);
 
-	printf("This is the SideStack monitor.\n");
-	printf("Processing  : Concurrent\n");
-	printf("PT Decoder  : Custom\n");
-
 	if(enforce){
 		printf("Enforcement : Enabled\n");
 	}
