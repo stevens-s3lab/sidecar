@@ -71,7 +71,15 @@ sudo insmod cs_driver.ko
 
 ### SideCar LLVM Toolchain
 
-To build and install the SideCar LLVM toolchain, run the following commands:
+To build and install the SideCar LLVM toolchain,
+ensure that the following dependencies are installed:
+
+```bash
+sudo apt-get install zlib1g-dev binutils-dev binutils-gold build-essential
+```
+
+Once the dependencies are installed,
+run the following commands:
 
 ```bash
 ./tools/install.sh llvm-sidecar
