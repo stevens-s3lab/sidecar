@@ -1,5 +1,5 @@
 CFLAGS+=-fvisibility=hidden -flto -fsanitize=cfi-icall -fsanitize-cfi-cross-dso -fsanitize-cfi-decouple
-LDFLAGS+=-fsanitize=cfi -flto -fvisibility=hidden
+LDFLAGS+=-fsanitize=cfi-icall -flto -fvisibility=hidden -fsanitize-cfi-cross-dso -fsanitize-cfi-decouple
 
 CC=../../install/llvm-sidecar/bin/clang
 
