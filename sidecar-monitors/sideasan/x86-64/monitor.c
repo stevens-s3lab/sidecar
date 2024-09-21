@@ -253,9 +253,6 @@ asan_opcode_parser(uint32_t pkt)
 unsigned long long
 process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bool overflow, bool wrap, bool last_read)
 {
-	register unsigned long long target_addr;
-	register unsigned typeID;
-
 	/* Current packet opcode byte */
 	unsigned char packet_opcode = 0x0;
 
