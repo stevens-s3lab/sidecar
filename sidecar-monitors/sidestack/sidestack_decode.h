@@ -7,10 +7,10 @@
 /* pkt out */
 FILE *pkt_out;
 
-typedef void(*sidestack_parser_t)(uint64_t);
+typedef void(*sidestack_parser_t)(uint32_t);
 
 /* base pkt parser */
-void sidestack_opcode_parser(uint64_t payload);
+void sidestack_opcode_parser(uint32_t payload);
 
 /* parser function pointer array */ 
 sidestack_parser_t parser[] = {
@@ -35,7 +35,7 @@ struct asan_decoder {
 	int pkt_index;
 	int total_pkt;
 	/* this might need to be larger */
-	uint64_t pkt[256];
+	uint32_t pkt[256];
 };
 
 struct asan_decoder asdec;
@@ -49,7 +49,7 @@ struct ptw_decoder {
 };
 
 void
-sidestack_opcode_parser(uint64_t payload)
+sidestack_opcode_parser(uint32_t payload)
 {
 	//register uint8_t oc;
 

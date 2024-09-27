@@ -135,14 +135,7 @@ read_topa(void)
 
 	free(overflow_buf);
 
-	/* get topa page offset */
-	if (ioctl(fd, PTW_GET_BUF_OFFSET, (uint64_t*) &buf_offset) < 0) {
-		printf("PTW_GET_BUF_OFFSET ioctl failed with errno %s \n",
-				strerror(errno));
-		exit(EXIT_FAILURE); 
-	}
-
-  i = process_trace_data(local_base, 0, buf_offset, false, false, true);
+	i = process_trace_data(topa, i, (unsigned long)local_base + buf_sz, false, false, false);
 }
 
 void signal_handler(int n, siginfo_t *info, void *unused) {
@@ -271,7 +264,7 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 
 	/* If overflow or last read no need to enter a slow path to account for fragmented packets */
 	if(!overflow && !last_read){
-		read_until -= 10;
+		read_until -= 6;
 	}
 
 	//printf("Computed read size as %llu and reading until %llu.\n", read_amt, read_until);
@@ -306,7 +299,7 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 						if ((packet_opcode & pt_opm_ptw) == pt_ext_ptw){
 							/* Load 4 bytes of PTWRITE data (32-bit values only) */
 							uint32_t ptw_value = *(uint32_t*)(local_ptr + i + 1);
-							// printf("ptwrite %x\n", ptw_value);
+							printf("ptwrite %x\n", ptw_value);
 
 							/* Decode value and run SideStack logic */
 							uint32_t op = ptw_value >> 30;
@@ -314,16 +307,18 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 							switch (op){
 								case 0x3:
 									addr = (ptw_value << 2) >> 2;
+									printf("pop: %x\n", addr);
 									sidestack_pop(addr);
 									break;
 								case 0x0:
+									printf("push: %x\n", ptw_value);
 									sidestack_push(ptw_value);
 									break;
 								default:
 									printf("Encountered invalid SideStack opcode %x!\n", op);
 							}
 
-							i+=4;
+							i+=5;
 
 							/* Handled overflow buffer - no need to go further */
 							if(overflow)
@@ -386,7 +381,7 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 							leftover = read_amt - i;
 							//printf("leftover is %d\n", leftover);
 							memcpy(overflow_buf, local_ptr+i, leftover);
-							memcpy(overflow_buf + leftover, topa, 10 - leftover);
+							memcpy(overflow_buf + leftover, topa, 6 - leftover);
 							//for(int k = 0; k < 10; k++){
 							//	printf("%hhx", overflow_buf[k]);
 							//}
