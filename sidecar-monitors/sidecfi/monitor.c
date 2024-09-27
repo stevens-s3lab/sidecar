@@ -151,7 +151,6 @@ read_topa(void)
 	size_t read_size;
 	int read_pgs;
 	char *local_base = topa;
-	unsigned int buf_offset;
 
 	bool wrap = false;
 	unsigned long long i = 0;
@@ -222,26 +221,7 @@ read_topa(void)
 	}
 
 	free(overflow_buf);
-
-	/* get topa page offset */
-	if (ioctl(fd, PTW_GET_BUF_OFFSET, (unsigned int*) &buf_offset) < 0) {
-		printf("PTW_GET_BUF_OFFSET ioctl failed with errno %s \n",
-				strerror(errno));
-		exit(EXIT_FAILURE); 
-	}
-
-	/* read remaining */
-	//printf("Performing final read.\n");
-	//printf("i currently at %llu\n", i);
-	//printf("Calling ptd with %lx, %llu, %ld, %d, %d, %d\n", (uint64_t)topa, i, buf_offset, false, false, true);
-	i = process_trace_data(local_base, 0, buf_offset, false, false, true);
-
-	/* log monitor stats */
-	//printf("%lld bytes copied\n", bytes_written);
-
-	//printf("rpage: %ld wpage: %ld\n", 
-	//		*rpage,
-	//		*wpage);
+	process_trace_data(topa, i, (unsigned long)local_base + buf_sz, false, false, false);
 }
 
 void signal_handler(int n, siginfo_t *info, void *unused) {
@@ -539,7 +519,7 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 									printf("Encountered invalid SideCFI opcode %lx!\n", op);
 							}
 
-							i+=8;
+							i+=9;
 
 							/* Handled overflow buffer - no need to go further */
 							if (overflow)

@@ -134,7 +134,7 @@ read_topa(void)
 
 	free(overflow_buf);
 
-	i = process_trace_data(topa, i, (unsigned long)local_base + buf_sz, false, false, false);
+	process_trace_data(topa, i, (unsigned long)local_base + buf_sz, false, false, false);
 }
 
 void signal_handler(int n, siginfo_t *info, void *unused) {
