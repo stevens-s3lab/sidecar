@@ -63,7 +63,6 @@ read_topa(void)
 	size_t read_size;
 	int read_pgs;
 	char *local_base = topa;
-	uint64_t buf_offset;
 
 	bool wrap = false;
 	unsigned long long i = 0;
@@ -299,7 +298,6 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 						if ((packet_opcode & pt_opm_ptw) == pt_ext_ptw){
 							/* Load 4 bytes of PTWRITE data (32-bit values only) */
 							uint32_t ptw_value = *(uint32_t*)(local_ptr + i + 1);
-							printf("ptwrite %x\n", ptw_value);
 
 							/* Decode value and run SideStack logic */
 							uint32_t op = ptw_value >> 30;
@@ -307,11 +305,9 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 							switch (op){
 								case 0x3:
 									addr = (ptw_value << 2) >> 2;
-									printf("pop: %x\n", addr);
 									sidestack_pop(addr);
 									break;
 								case 0x0:
-									printf("push: %x\n", ptw_value);
 									sidestack_push(ptw_value);
 									break;
 								default:
