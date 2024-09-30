@@ -14,6 +14,7 @@
 #define SET_MONITORID 	_IOR(S3STM_IOCTL_TYPE, 'i', void*)
 #define INCR_RRP 	_IOR(S3STM_IOCTL_TYPE, 'j', void*)
 #define GET_ETR_SZ 	_IOR(S3STM_IOCTL_TYPE, 'k', void*)
+#define GET_BASE 	_IOR(S3STM_IOCTL_TYPE, 'l', void*)
 
 
 /* ETR modes supported by driver */

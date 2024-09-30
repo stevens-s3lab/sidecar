@@ -17,7 +17,7 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
-#include "../../sidecar-driver/x86-64/ptw.h"
+#include "../../../sidecar-driver/x86-64/ptw.h"
 #include "pt_opcodes.h"
 #include "sidestack_decode.h"
 

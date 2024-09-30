@@ -1,5 +1,5 @@
 CC=$(CROSS_COMPILE)gcc
-CFLAGS+=-O2 -Wall -I../../../sidecar-driver/aarch64/ -Iopencsd/decoder/include 
+CFLAGS+=-O2 -Wall -I../../../sidecar-driver/aarch64/ -I../../sideasan/aarch64/opencsd/decoder/include 
 LIBS+=-lcrypto
 
 BINS=monitor

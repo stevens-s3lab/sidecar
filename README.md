@@ -91,10 +91,10 @@ an `install` directory for the installation of the LLVM toolchain.
 ### SideCar Monitors
 
 Any of the SideCar monitors can be built by moving to the respective directory and running `make`.
-e.g. for SideCFI:
+e.g. for the x86-64 SideCFI:
 
 ```bash
-cd sidecar-monitors/sidecfi
+cd sidecar-monitors/sidecfi/x86-64
 make
 ```
 

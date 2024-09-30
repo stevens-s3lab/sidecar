@@ -1,18 +1,14 @@
 CC=$(CROSS_COMPILE)gcc
-CFLAGS+=-O3 -Wall -I../../sidecar-driver/x86-64
+CFLAGS+=-O2 -Wall -I../../../sidecar-driver/aarch64/ -I../../sideasan/aarch64/opencsd/decoder/include 
 LIBS+=-lcrypto
 
 BINS=monitor
-HEADERS=sidestack_decode.h sidestack_api.h
+HEADERS=asan_decode.h asan_api.h ../../../sidecar-driver/aarch64/s3stm.h
+MLIBS+=-Lopencsd/decoder/lib/builddir -lopencsd -lopencsd_c_api
 src = $(wildcard *.c)
 OBJS= $(src:.c=.o)
 
-ARCH=$(shell $(CC) -v 2>&1 | grep Target:)
-ifeq ($(ARCH), Target: x86_64-linux-gnu)
-	TGT=-DTGT_X86_64
-else
-	TGT=-DTGT_AARCH64
-endif
+TGT=-DTGT_AARCH64
 CFLAGS+=$(TGT)
 
 ifneq ($(SYSROOT),)
@@ -26,7 +22,7 @@ all: $(BINS)
 	$(CC) $(CFLAGS) -c $<
 
 monitor: ${OBJS}
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(MLIBS)
 
 clean:
 	rm -f *.o *.log $(BINS) *.out
