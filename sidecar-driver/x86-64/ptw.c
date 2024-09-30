@@ -73,7 +73,10 @@ static DEFINE_MUTEX(dso_list_mutex);
 /* asan */
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 
-/* pmi handler */
+/* Handles the bottom-half processing of the PMI (Performance Monitoring Interrupt).
+ * - Sleeps until the buffers have been processed, then resumes the ASAN process.
+ * - Scheduled to run after the NMI handler detects an overflow condition.
+ */
 void handler_bh(struct work_struct *work);
 DECLARE_WORK(workqueue, handler_bh);
 
@@ -190,6 +193,9 @@ static inline int pt_rdmsrl_safe(unsigned msr, u64 *val)
 }
 
 
+/* Updates the write pointer of the TOPA buffer.
+ * - Reads the MSR register to update the device's write pointer and offset.
+ */
 static inline void topa_writer_get(struct ptw_dev *dev)
 {
 	u64 offset;
@@ -217,6 +223,10 @@ static inline unsigned short get_reader_page(struct ptw_dev *dev,
 	return page;
 }
 
+/* Stops the PT tracing on the current CPU.
+ * - Disables tracing and updates the status of the PT device.
+ * - This function is executed in the context of the current CPU.
+ */
 static int stop_pt(void *arg)
 {
 	u64 ctl, status;
@@ -272,6 +282,10 @@ static int stop_pt(void *arg)
  * +-----------------------+----+------+---+------+---+-----+---+-----+
  * | Output region Base PA |  X | Size | X | STOP | X | INT | X | END |
  * +-----------------------+----+------+---+------+---+-----+---+-----+
+ */
+/* Allocates the TOPA (Table of Physical Addresses) buffer for tracing.
+ * - Sets up the circular buffer for PT output and handles buffer size configuration.
+ * - Returns 0 on success or an error code on failure.
  */
 static int topa_alloc(struct ptw_dev *dev)
 {
@@ -331,6 +345,10 @@ topa_error:
 	return -ENOMEM;
 }
 
+/* Starts PT tracing on the specified PTW device.
+ * - Configures the control registers and sets up the necessary tracing parameters.
+ * - Called to initiate tracing after configuration is completed.
+ */
 static void start_pt(struct ptw_dev *dev)
 {
 	u64 ctl, status;
@@ -410,6 +428,9 @@ static void start_pt(struct ptw_dev *dev)
 	debugk("tracing started on CPU %d\n", dev->cpu);
 }
 
+/* Frees the memory allocated for the TOPA buffer.
+ * - Releases all pages and cleans up memory associated with the TOPA entries.
+ */
 static void topa_free(u64 *topa, unsigned int topasz, unsigned long order)
 {
 	int j;
@@ -424,6 +445,10 @@ static void topa_free(u64 *topa, unsigned int topasz, unsigned long order)
 	free_page((unsigned long)topa);
 }
 
+/* Initializes the PTW device structure for a given CPU. 
+ * - Sets up the structure with initial values and configures locks.
+ * - This function is called when the CPU starts up.
+ */
 static void ptw_dev_init(struct ptw_dev *dev, unsigned int cpu)
 {
 	/* init struct */
@@ -434,6 +459,10 @@ static void ptw_dev_init(struct ptw_dev *dev, unsigned int cpu)
 	mutex_init(&dev->lock);
 }
 
+/* Configures the PTW device for tracing on a given CPU. 
+ * - Allocates memory for the read/write pages and sets up the configuration.
+ * - Returns 0 on success or an error code on failure.
+ */
 static int ptw_dev_configure(struct ptw_dev *dev)
 {
 	int err = 0;
@@ -469,7 +498,11 @@ free_rpage:
 	return err;
 }
 
-
+/* Handles CPU startup initialization for the PTW device. 
+ * - Allocates memory for the device structure and calls ptw_dev_init() 
+ *   and ptw_dev_configure().
+ * - Returns 0 on success or an error code if any step fails.
+ */
 static int ptw_cpu_startup(unsigned int cpu)
 {
 	struct ptw_dev *dev;
@@ -503,6 +536,10 @@ static int ptw_cpu_startup(unsigned int cpu)
 	return 0;
 }
 
+/* Handles CPU teardown for the PTW device. 
+ * - Frees memory allocated for the device and any associated buffers.
+ * - Called when the CPU goes offline.
+ */
 static int ptw_cpu_teardown(unsigned int cpu)
 {
 	struct ptw_dev *dev;
@@ -529,6 +566,10 @@ static int ptw_cpu_teardown(unsigned int cpu)
 	return 0;
 }
 
+/* Calculates the distance between the read and write pages.
+ * - Returns the number of available pages for the reader.
+ * - Used to determine if tracing should be paused or continued.
+ */
 static int rdwr_pagedist(struct ptw_dev *dev)
 {
 	int avail_pages;
@@ -544,6 +585,11 @@ static int rdwr_pagedist(struct ptw_dev *dev)
 	return (avail_pages - 1);
 }
 
+/* IOCTL command handler for the PTW device.
+ * - Handles various commands sent from user-space to control tracing, 
+ *   set up mappings, and get tracing data.
+ * - Implements logic based on the ioctl command passed in.
+ */
 static long ptw_ioctl(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
 {
@@ -698,7 +744,10 @@ static long ptw_ioctl(struct file *filp, unsigned int cmd,
 }
 
 
-/* Device release handler */
+/* Handles the release/closing of the PTW device.
+ * - Manages cleanup logic when the device is closed, either by the producer or monitor.
+ * - Stops tracing and signals other processes as needed.
+ */
 static int ptw_release(struct inode *inode, struct file *filp)
 {
 	struct ptw_dev *dev;
@@ -743,7 +792,9 @@ static int ptw_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-/* Device open handler */
+/* Handles the opening of the PTW device.
+ * - Simply logs that the device has been opened.
+ */
 static int ptw_open(struct inode *inode, struct file *filp)
 {
 	debugk("device opened\n");
@@ -751,7 +802,10 @@ static int ptw_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-/* Device mmap handler */
+/* Maps the memory for the PTW device to user-space.
+ * - Provides access to either the read/write pointers or the TOPA buffer.
+ * - Sets up the necessary memory regions based on user-space requests.
+ */
 static int ptw_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct ptw_dev *dev;
@@ -849,7 +903,10 @@ static struct miscdevice ptw_miscdev = {
 	&ptw_fops
 };
 
-
+/* Retrieves the CPU's capabilities for Intel PT.
+ * - Uses CPUID to determine if the CPU supports the necessary features for PT.
+ * - Sets flags indicating which features are available.
+ */
 static int ptw_cpuid(void)
 {
 	unsigned a, b, c, d;
@@ -914,6 +971,10 @@ handler_bh(struct work_struct *work)
 	dev->process_stopped = 0;
 }
 
+/* Handles NMI (Non-Maskable Interrupt) triggered events for the PTW device.
+ * - Checks if the NMI was triggered by PT tracing and handles buffer management.
+ * - Stops the process if an overflow condition is detected.
+ */
 static int ptw_nmi(unsigned int cmd, struct pt_regs *regs)
 {
 	u64 perf_status;
@@ -960,7 +1021,10 @@ static int ptw_nmi(unsigned int cmd, struct pt_regs *regs)
 	return NMI_HANDLED;
 }
 
-
+/* Initializes the PTW module.
+ * - Registers the device, sets up CPU hotplug handlers, and configures the NMI handler.
+ * - Called when the module is loaded into the kernel.
+ */
 static int ptw_init(void)
 {
 	int err;
@@ -1006,6 +1070,10 @@ out_buffers:
 	return err;
 }
 
+/* Cleans up the PTW module and frees resources.
+ * - Unregisters the device, removes the NMI handler, and tears down CPU handlers.
+ * - Called when the module is removed from the kernel.
+ */
 static void ptw_exit(void)
 {
   int cpu;
