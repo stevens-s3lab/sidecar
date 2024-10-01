@@ -1,0 +1,4210 @@
+diff llvm-project-llvmorg-12.0.1/clang/include/clang/Basic/CodeGenOptions.def sidecar-llvm/clang/include/clang/Basic/CodeGenOptions.def
+--- llvm-project-llvmorg-12.0.1/clang/include/clang/Basic/CodeGenOptions.def	2024-09-30 17:44:27
++++ sidecar-llvm/clang/include/clang/Basic/CodeGenOptions.def	2024-08-28 10:29:20
+@@ -217,6 +217,9 @@
+ CODEGENOPT(SanitizeMemoryUseAfterDtor, 1, 0) ///< Enable use-after-delete detection
+                                              ///< in MemorySanitizer
+ CODEGENOPT(SanitizeCfiCrossDso, 1, 0) ///< Enable cross-dso support in CFI.
++CODEGENOPT(SanitizeCfiDecouple, 1, 0) ///< Enable decoupling of CFI checks (S3LAB).
++CODEGENOPT(SanitizeCfiSlowpathDecouple, 1, 0) ///< Enable decoupling of CFI slowpath checks (S3LAB).
++CODEGENOPT(SanitizeSidestack, 1, 0) ///< Enable decoupling of Shadow Call Stack aka Sidestack (S3LAB).
+ CODEGENOPT(SanitizeMinimalRuntime, 1, 0) ///< Use "_minimal" sanitizer runtime for
+                                          ///< diagnostics.
+ CODEGENOPT(SanitizeCfiICallGeneralizePointers, 1, 0) ///< Generalize pointer types in
+diff llvm-project-llvmorg-12.0.1/clang/include/clang/Basic/Features.def sidecar-llvm/clang/include/clang/Basic/Features.def
+--- llvm-project-llvmorg-12.0.1/clang/include/clang/Basic/Features.def	2024-09-30 17:44:27
++++ sidecar-llvm/clang/include/clang/Basic/Features.def	2024-08-28 10:29:21
+@@ -220,8 +220,7 @@
+ FEATURE(is_union, LangOpts.CPlusPlus)
+ FEATURE(modules, LangOpts.Modules)
+ FEATURE(safe_stack, LangOpts.Sanitize.has(SanitizerKind::SafeStack))
+-FEATURE(shadow_call_stack,
+-        LangOpts.Sanitize.has(SanitizerKind::ShadowCallStack))
++FEATURE(shadow_call_stack, LangOpts.Sanitize.has(SanitizerKind::ShadowCallStack))
+ FEATURE(tls, PP.getTargetInfo().isTLSSupported())
+ FEATURE(underlying_type, LangOpts.CPlusPlus)
+ 
+diff llvm-project-llvmorg-12.0.1/clang/include/clang/Driver/SanitizerArgs.h sidecar-llvm/clang/include/clang/Driver/SanitizerArgs.h
+--- llvm-project-llvmorg-12.0.1/clang/include/clang/Driver/SanitizerArgs.h	2024-09-30 17:44:27
++++ sidecar-llvm/clang/include/clang/Driver/SanitizerArgs.h	2024-08-28 10:29:21
+@@ -33,6 +33,9 @@
+   int MsanTrackOrigins = 0;
+   bool MsanUseAfterDtor = true;
+   bool CfiCrossDso = false;
++  bool CfiDecouple = false; // S3LAB
++  bool CfiSlowpathDecouple = false; // S3LAB
++  bool Sidestack = false; // S3LAB
+   bool CfiICallGeneralizePointers = false;
+   bool CfiCanonicalJumpTables = false;
+   int AsanFieldPadding = 0;
+@@ -81,6 +84,10 @@
+   bool requiresMinimalRuntime() const { return MinimalRuntime; }
+   bool needsDfsanRt() const { return Sanitizers.has(SanitizerKind::DataFlow); }
+   bool needsSafeStackRt() const { return SafeStackRuntime; }
++  bool needsSidecarRt() const; // S3LAB
++  bool needsSidestackRt() const; // S3LAB
++  bool needsScsRt() const; // S3LAB
++  bool needsDCfiRt() const; // S3LAB
+   bool needsCfiRt() const;
+   bool needsCfiDiagRt() const;
+   bool needsStatsRt() const { return Stats; }
+@@ -92,6 +99,9 @@
+   bool linkRuntimes() const { return LinkRuntimes; }
+   bool linkCXXRuntimes() const { return LinkCXXRuntimes; }
+   bool hasCrossDsoCfi() const { return CfiCrossDso; }
++  bool hasCfiDecouple() const { return CfiDecouple; } // S3LAB
++  bool hasCfiSlowpathDecouple() const { return CfiSlowpathDecouple; } // S3LAB
++  bool hasSidestack() const { return Sidestack; } // S3LAB
+   bool hasAnySanitizer() const { return !Sanitizers.empty(); }
+   void addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
+                llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/BackendUtil.cpp sidecar-llvm/clang/lib/CodeGen/BackendUtil.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/BackendUtil.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/BackendUtil.cpp	2024-08-28 10:29:21
+@@ -64,6 +64,7 @@
+ #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
+ #include "llvm/Transforms/InstCombine/InstCombine.h"
+ #include "llvm/Transforms/Instrumentation.h"
++#include "llvm/Transforms/Instrumentation/SideStack.h"
+ #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
+ #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
+ #include "llvm/Transforms/Instrumentation/DataFlowSanitizer.h"
+@@ -708,6 +709,13 @@
+     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                            addMemProfilerPasses);
+   }
++
++  // S3LAB: XXX Drop this?
++  /*
++  if (LangOpts.Sanitize.has(SanitizerKind::ShadowCallStack) && CodeGenOpts.SanitizeSidestack) {
++    MPM.add(createSideStackPass());
++  }
++  */
+ 
+   if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds)) {
+     PMBuilder.addExtension(PassManagerBuilder::EP_ScalarOptimizerLate,
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CGClass.cpp sidecar-llvm/clang/lib/CodeGen/CGClass.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CGClass.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/CGClass.cpp	2024-08-28 10:29:21
+@@ -28,6 +28,7 @@
+ #include "clang/CodeGen/CGFunctionInfo.h"
+ #include "llvm/IR/Intrinsics.h"
+ #include "llvm/IR/Metadata.h"
++#include "llvm/IR/InlineAsm.h"
+ #include "llvm/Transforms/Utils/SanitizerStats.h"
+ 
+ using namespace clang;
+@@ -2787,33 +2788,47 @@
+   llvm::Value *TypeId = llvm::MetadataAsValue::get(getLLVMContext(), MD);
+ 
+   llvm::Value *CastedVTable = Builder.CreateBitCast(VTable, Int8PtrTy);
++
+   llvm::Value *TypeTest = Builder.CreateCall(
+-      CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, TypeId});
++  	CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, TypeId});
+ 
+   llvm::Constant *StaticData[] = {
+-      llvm::ConstantInt::get(Int8Ty, TCK),
+-      EmitCheckSourceLocation(Loc),
+-      EmitCheckTypeDescriptor(QualType(RD->getTypeForDecl(), 0)),
++    llvm::ConstantInt::get(Int8Ty, TCK),
++    EmitCheckSourceLocation(Loc),
++    EmitCheckTypeDescriptor(QualType(RD->getTypeForDecl(), 0)),
+   };
+ 
+-  auto CrossDsoTypeId = CGM.CreateCrossDsoCfiTypeId(MD);
+-  if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
+-    EmitCfiSlowPathCheck(M, TypeTest, CrossDsoTypeId, CastedVTable, StaticData);
+-    return;
++  // S3LAB: decouple CFI
++  // Print vcall info
++  if (CGM.getCodeGenOpts().SanitizeCfiDecouple || CGM.getCodeGenOpts().SanitizeCfiSlowpathDecouple) {
++    // Print Type ID
++    LLVM_DEBUG(
++      clang::QualType t(RD->getTypeForDecl(), 0);
++      llvm::dbgs() << "***VCall Type ID: " << *MD << " qual type: " << t.getAsString() << "\n";
++    );
+   }
+ 
++  // S3LAB Only emit the slow path check if we are not decoupling everything
++  if (!CGM.getCodeGenOpts().SanitizeCfiDecouple) {
++    auto CrossDsoTypeId = CGM.CreateCrossDsoCfiTypeId(MD);
++    if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
++      EmitCfiSlowPathCheck(M, TypeTest, CrossDsoTypeId, CastedVTable, StaticData);
++      return;
++    }
++  }
++
+   if (CGM.getCodeGenOpts().SanitizeTrap.has(M)) {
+     EmitTrapCheck(TypeTest, SanitizerHandler::CFICheckFail);
+     return;
+   }
+ 
+   llvm::Value *AllVtables = llvm::MetadataAsValue::get(
+-      CGM.getLLVMContext(),
+-      llvm::MDString::get(CGM.getLLVMContext(), "all-vtables"));
++    CGM.getLLVMContext(),
++    llvm::MDString::get(CGM.getLLVMContext(), "all-vtables"));
+   llvm::Value *ValidVtable = Builder.CreateCall(
+-      CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, AllVtables});
++    CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedVTable, AllVtables});
+   EmitCheck(std::make_pair(TypeTest, M), SanitizerHandler::CFICheckFail,
+-            StaticData, {CastedVTable, ValidVtable});
++    StaticData, {CastedVTable, ValidVtable});
+ }
+ 
+ bool CodeGenFunction::ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD) {
+@@ -2854,6 +2869,12 @@
+   if (SanOpts.has(SanitizerKind::CFIVCall) &&
+       !getContext().getSanitizerBlacklist().isBlacklistedType(
+           SanitizerKind::CFIVCall, TypeName)) {
++    // S3LAB: decouple CFI
++    if (CGM.getCodeGenOpts().SanitizeCfiDecouple || CGM.getCodeGenOpts().SanitizeCfiSlowpathDecouple) {
++      // Print Type ID
++      clang::QualType t(RD->getTypeForDecl(), 0);
++      llvm::dbgs() << "***VCall 2 Type ID: " << *MD << " qual type: " << t.getAsString() << "\n";
++    }
+     EmitCheck(std::make_pair(CheckResult, SanitizerKind::CFIVCall),
+               SanitizerHandler::CFICheckFail, {}, {});
+   }
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CGDeclCXX.cpp sidecar-llvm/clang/lib/CodeGen/CGDeclCXX.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CGDeclCXX.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/CGDeclCXX.cpp	2024-08-28 10:29:21
+@@ -422,10 +422,18 @@
+   if (getLangOpts().Sanitize.has(SanitizerKind::SafeStack) &&
+       !isInSanitizerBlacklist(SanitizerKind::SafeStack, Fn, Loc))
+     Fn->addFnAttr(llvm::Attribute::SafeStack);
+-
++  /* S3LAB
++  if (getLangOpts().Sanitize.has(SanitizerKind::SideStack) &&
++      !isInSanitizerBlacklist(SanitizerKind::SideStack, Fn, Loc))
++    Fn->addFnAttr(llvm::Attribute::SideStack);
++  */
++  // S3LAB
+   if (getLangOpts().Sanitize.has(SanitizerKind::ShadowCallStack) &&
+-      !isInSanitizerBlacklist(SanitizerKind::ShadowCallStack, Fn, Loc))
++      !isInSanitizerBlacklist(SanitizerKind::ShadowCallStack, Fn, Loc)) {
+     Fn->addFnAttr(llvm::Attribute::ShadowCallStack);
++    if (getCodeGenOpts().SanitizeSidestack)
++      Fn->addFnAttr(llvm::Attribute::SideStack);
++  }
+ 
+   return Fn;
+ }
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CGExpr.cpp sidecar-llvm/clang/lib/CodeGen/CGExpr.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CGExpr.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/CGExpr.cpp	2024-08-28 10:29:21
+@@ -38,6 +38,9 @@
+ #include "llvm/Support/MathExtras.h"
+ #include "llvm/Support/Path.h"
+ #include "llvm/Transforms/Utils/SanitizerStats.h"
++// S3LAB: to print debug messages
++#include "llvm/Support/Debug.h"
++#include "llvm/IR/InlineAsm.h"
+ 
+ #include <string>
+ 
+@@ -60,6 +63,13 @@
+   return Builder.CreateBitCast(value, destType);
+ }
+ 
++// S3LAB: decoupled CFI instrumentation
++static inline uint16_t HashDown(uint64_t data, uint16_t mod)
++{
++  uint16_t v = data ^ (data >> 16) ^ (data >> 32) ^ (data >> 48);
++  return (v % mod);
++}
++
+ /// CreateTempAlloca - This creates a alloca and inserts it into the entry
+ /// block.
+ Address CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty,
+@@ -3307,6 +3317,43 @@
+ 
+   EmitBlock(CheckBB);
+ 
++  // S3LAB: decoupled CFI instrumentation
++  if (CGM.getCodeGenOpts().SanitizeCfiSlowpathDecouple) {
++    llvm::Module *M = &CGM.getModule();
++    auto *VTy = llvm::Type::getVoidTy(M->getContext());
++    llvm::ConstantInt *TypeIdInt = dyn_cast<llvm::ConstantInt>(TypeId);
++    uint64_t TypeIdUint64 = TypeIdInt ? TypeIdInt->getZExtValue() : 0;
++    llvm::InlineAsm *DCfiInlineAsm;
++    llvm::Triple TargetTriple(M->getTargetTriple());
++    llvm::Triple::ArchType Arch = TargetTriple.getArch();
++
++    if (Arch == llvm::Triple::x86 || Arch == llvm::Triple::x86_64) {
++      DCfiInlineAsm = llvm::InlineAsm::get(
++      llvm::FunctionType::get(VTy, {Int64Ty}, false),
++      	StringRef("ptwrite $0"), StringRef("r"), true);
++    } else {
++      DCfiInlineAsm = llvm::InlineAsm::get(
++      llvm::FunctionType::get(VTy, {Int64Ty}, false),
++      	StringRef("nop"), StringRef("r"), true);
++    }
++
++    // Assuming HashDown and dbgs are correctly defined and accessible
++    auto HashedTypeId = HashDown(TypeIdUint64, 0x3FFF);
++    static const uint64_t CfiCheckOpcode = 0x1ULL << 62;
++    LLVM_DEBUG(
++        llvm::dbgs() << "***lowering " << Ptr->getName() << " MD: " << *TypeId << " (" << HashedTypeId << ") TIL kind: SlowPath\n";
++    );
++
++    llvm::Value *PtrAsInt = Builder.CreatePtrToInt(Ptr, Int64Ty);
++    llvm::Value *DCfiVal = Builder.CreateOr(PtrAsInt, llvm::ConstantInt::get(Int64Ty,
++          		  CfiCheckOpcode | ((uint64_t)HashedTypeId << 48)));
++    Builder.CreateCall(DCfiInlineAsm, DCfiVal);
++
++    EmitBlock(Cont);
++
++    return;
++  }
++
+   bool WithDiag = !CGM.getCodeGenOpts().SanitizeTrap.has(Kind);
+ 
+   llvm::CallInst *CheckCall;
+@@ -3445,7 +3492,6 @@
+     else
+       EmitTrapCheck(Cond, SanitizerHandler::CFICheckFail);
+   }
+-
+   FinishFunction();
+   // The only reference to this function will be created during LTO link.
+   // Make sure it survives until then.
+@@ -5179,6 +5225,7 @@
+     llvm::Value *TypeId = llvm::MetadataAsValue::get(getLLVMContext(), MD);
+ 
+     llvm::Value *CalleePtr = Callee.getFunctionPointer();
++
+     llvm::Value *CastedCallee = Builder.CreateBitCast(CalleePtr, Int8PtrTy);
+     llvm::Value *TypeTest = Builder.CreateCall(
+         CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedCallee, TypeId});
+@@ -5189,13 +5236,31 @@
+         EmitCheckSourceLocation(E->getBeginLoc()),
+         EmitCheckTypeDescriptor(QualType(FnType, 0)),
+     };
+-    if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
+-      EmitCfiSlowPathCheck(SanitizerKind::CFIICall, TypeTest, CrossDsoTypeId,
+-                           CastedCallee, StaticData);
+-    } else {
++
++    // S3LAB: decouple CFI
++    if (CGM.getCodeGenOpts().SanitizeCfiDecouple) {
++      // Print Type ID
++      clang::QualType t(FnType, 0);
++      LLVM_DEBUG(
++        llvm::dbgs() << "****Icall Type ID: " << *MD << " qual type: " << t.getAsString();
++        if (CrossDsoTypeId)
++          llvm::dbgs() << " Cross DSO ID: " << *CrossDsoTypeId << "\n";
++        else
++          llvm::dbgs() << " Cross DSO ID: null\n";
++      );
++
+       EmitCheck(std::make_pair(TypeTest, SanitizerKind::CFIICall),
+                 SanitizerHandler::CFICheckFail, StaticData,
+                 {CastedCallee, llvm::UndefValue::get(IntPtrTy)});
++    } else { // regular CFI
++      if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
++        EmitCfiSlowPathCheck(SanitizerKind::CFIICall, TypeTest, CrossDsoTypeId,
++            CastedCallee, StaticData);
++      } else {
++        EmitCheck(std::make_pair(TypeTest, SanitizerKind::CFIICall),
++            SanitizerHandler::CFICheckFail, StaticData,
++            {CastedCallee, llvm::UndefValue::get(IntPtrTy)});
++      }
+     }
+   }
+ 
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CodeGenFunction.cpp sidecar-llvm/clang/lib/CodeGen/CodeGenFunction.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CodeGenFunction.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/CodeGenFunction.cpp	2024-08-28 10:29:21
+@@ -754,8 +754,16 @@
+     Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
+   if (SanOpts.has(SanitizerKind::SafeStack))
+     Fn->addFnAttr(llvm::Attribute::SafeStack);
+-  if (SanOpts.has(SanitizerKind::ShadowCallStack))
++  /* S3LAB
++  if (SanOpts.has(SanitizerKind::SideStack))
++    Fn->addFnAttr(llvm::Attribute::SideStack);
++  */
++  // S3LAB
++  if (SanOpts.has(SanitizerKind::ShadowCallStack)) {
+     Fn->addFnAttr(llvm::Attribute::ShadowCallStack);
++    if (CGM.getCodeGenOpts().SanitizeSidestack)
++      Fn->addFnAttr(llvm::Attribute::SideStack);
++  }
+ 
+   // Apply fuzzing attribute to the function.
+   if (SanOpts.hasOneOf(SanitizerKind::Fuzzer | SanitizerKind::FuzzerNoLink))
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CodeGenModule.cpp sidecar-llvm/clang/lib/CodeGen/CodeGenModule.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CodeGenModule.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/CodeGenModule.cpp	2024-08-28 10:29:21
+@@ -180,9 +180,13 @@
+   // CoverageMappingModuleGen object.
+   if (CodeGenOpts.CoverageMapping)
+     CoverageMapping.reset(new CoverageMappingModuleGen(*this, *CoverageInfo));
++
++  // S3LAB: open typemap file
++  InitializeLogFile();
+ }
+ 
+-CodeGenModule::~CodeGenModule() {}
++CodeGenModule::~CodeGenModule() {
++}
+ 
+ void CodeGenModule::createObjCRuntime() {
+   // This is just isGNUFamily(), but we want to force implementors of
+@@ -403,6 +407,26 @@
+   }
+ }
+ 
++void CodeGenModule::InitializeLogFile() {
++  llvm::LLVMContext &Ctx = getLLVMContext();
++  llvm::NamedMDNode *ModMeta = TheModule.getOrInsertNamedMetadata("source_file_name");
++  llvm::MDString *SourceFileNameMD = llvm::MDString::get(Ctx, GetOutputFileName());
++  ModMeta->addOperand(llvm::MDNode::get(Ctx, SourceFileNameMD));
++}
++
++std::string CodeGenModule::GetOutputFileName() const {
++  std::string outputFileName = TheModule.getName().str();
++  size_t lastSlash = outputFileName.find_last_of("/\\");
++  if (lastSlash != std::string::npos) {
++    outputFileName = outputFileName.substr(lastSlash + 1);
++  }
++  size_t lastDot = outputFileName.find_last_of('.');
++  if (lastDot != std::string::npos) {
++    outputFileName = outputFileName.substr(0, lastDot);
++  }
++  return outputFileName;
++}
++
+ static void setVisibilityFromDLLStorageClass(const clang::LangOptions &LO,
+                                              llvm::Module &M) {
+   if (!LO.VisibilityFromDLLStorageClass)
+@@ -487,6 +511,7 @@
+   EmitDeferredUnusedCoverageMappings();
+   if (CoverageMapping)
+     CoverageMapping->emit();
++  // S3LAB: we need these stubs to force processing of the corresponding targets
+   if (CodeGenOpts.SanitizeCfiCrossDso) {
+     CodeGenFunction(*this).EmitCfiCheckFail();
+     CodeGenFunction(*this).EmitCfiCheckStub();
+@@ -598,11 +623,24 @@
+                               llvm::MDString::get(Ctx, ABIStr));
+   }
+ 
++  if (CodeGenOpts.SanitizeCfiDecouple) {
++    // S3LAB: Indicate that we want decoupled control flow integrity checks.
++    getModule().addModuleFlag(llvm::Module::Override, "DECOUPLE CFI", 1);
++  } else if (CodeGenOpts.SanitizeCfiSlowpathDecouple) {
++    // S3LAB: Indicate that we want decoupled slow path control flow integrity checks.
++    getModule().addModuleFlag(llvm::Module::Override, "DECOUPLE SLOW CFI", 1);
++  }
++
+   if (CodeGenOpts.SanitizeCfiCrossDso) {
+     // Indicate that we want cross-DSO control flow integrity checks.
+     getModule().addModuleFlag(llvm::Module::Override, "Cross-DSO CFI", 1);
+   }
+ 
++  if (CodeGenOpts.SanitizeSidestack) {
++    // S3LAB: Indicate that we want decoupled control flow integrity checks.
++    getModule().addModuleFlag(llvm::Module::Override, "SIDESTACK", 1);
++  }
++
+   if (CodeGenOpts.WholeProgramVTables) {
+     // Indicate whether VFE was enabled for this module, so that the
+     // vcall_visibility metadata added under whole program vtables is handled
+@@ -1962,6 +2000,13 @@
+   setNonAliasAttributes(GD, F);
+ }
+ 
++// S3LAB: Helper function
++static inline uint16_t HashDown(uint64_t data, uint16_t mod)
++{
++	uint16_t v = data ^ (data >> 16) ^ (data >> 32) ^ (data >> 48);
++	return (v % mod);
++}
++
+ static void setLinkageForGV(llvm::GlobalValue *GV, const NamedDecl *ND) {
+   // Set linkage and visibility in case we never see a definition.
+   LinkageInfo LV = ND->getLinkageAndVisibility();
+@@ -1989,9 +2034,16 @@
+   F->addTypeMetadata(0, CreateMetadataIdentifierGeneralized(FD->getType()));
+ 
+   // Emit a hash-based bit set entry for cross-DSO calls.
+-  if (CodeGenOpts.SanitizeCfiCrossDso)
+-    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD))
++  // S3LAB: Add metadata to all icalled functions for DCFI
++  if (CodeGenOpts.SanitizeCfiCrossDso || CodeGenOpts.SanitizeCfiDecouple)
++    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD)) {
+       F->addTypeMetadata(0, llvm::ConstantAsMetadata::get(CrossDsoTypeId));
++
++      // S3LAB: print out function type
++      auto HashedTypeId = HashDown(CrossDsoTypeId->getZExtValue(), 0x3FFF);
++      //llvm::dbgs() << "***create func md " << F->getName() << ' ' << *MD << ' '
++        //    << *CrossDsoTypeId << " (" << HashedTypeId << ")\n";
++    }
+ }
+ 
+ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
+@@ -6198,10 +6250,16 @@
+       CreateMetadataIdentifierForType(QualType(RD->getTypeForDecl(), 0));
+   VTable->addTypeMetadata(Offset.getQuantity(), MD);
+ 
+-  if (CodeGenOpts.SanitizeCfiCrossDso)
+-    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD))
++  // S3LAB: we want a type id for all VTables
++  if (CodeGenOpts.SanitizeCfiCrossDso || CodeGenOpts.SanitizeCfiDecouple)
++    if (auto CrossDsoTypeId = CreateCrossDsoCfiTypeId(MD)) {
+       VTable->addTypeMetadata(Offset.getQuantity(),
+                               llvm::ConstantAsMetadata::get(CrossDsoTypeId));
++
++      auto HashedTypeId = HashDown(CrossDsoTypeId->getZExtValue(), 0x3FFF);
++      //llvm::dbgs() << "***create vtable md " << VTable->getName() << ' ' <<
++	//                  *CrossDsoTypeId << " (" << HashedTypeId << ")" << "\n";
++    }
+ 
+   if (NeedAllVtablesTypeId()) {
+     llvm::Metadata *MD = llvm::MDString::get(getLLVMContext(), "all-vtables");
+diff llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CodeGenModule.h sidecar-llvm/clang/lib/CodeGen/CodeGenModule.h
+--- llvm-project-llvmorg-12.0.1/clang/lib/CodeGen/CodeGenModule.h	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/CodeGen/CodeGenModule.h	2024-08-28 10:29:21
+@@ -36,6 +36,10 @@
+ #include "llvm/IR/ValueHandle.h"
+ #include "llvm/Transforms/Utils/SanitizerStats.h"
+ 
++#include <fstream>
++#include <sstream>
++#include <string>
++
+ namespace llvm {
+ class Module;
+ class Constant;
+@@ -556,6 +560,11 @@
+   MetadataTypeMap MetadataIdMap;
+   MetadataTypeMap VirtualMetadataIdMap;
+   MetadataTypeMap GeneralizedMetadataIdMap;
++  
++  std::ofstream logFile;
++  void InitializeLogFile();
++  void FinalizeLogFile();
++  std::string GetOutputFileName() const;
+ 
+ public:
+   CodeGenModule(ASTContext &C, const HeaderSearchOptions &headersearchopts,
+diff llvm-project-llvmorg-12.0.1/clang/lib/Driver/SanitizerArgs.cpp sidecar-llvm/clang/lib/Driver/SanitizerArgs.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/Driver/SanitizerArgs.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/Driver/SanitizerArgs.cpp	2024-08-28 10:29:21
+@@ -243,6 +243,11 @@
+   return needsFuzzer() && !needsAsanRt() && !needsTsanRt() && !needsMsanRt();
+ }
+ 
++// S3LAB
++bool SanitizerArgs::needsSidecarRt() const {
++  return (CfiDecouple || CfiSlowpathDecouple || Sidestack);
++}
++
+ bool SanitizerArgs::needsUbsanRt() const {
+   // All of these include ubsan.
+   if (needsAsanRt() || needsMsanRt() || needsHwasanRt() || needsTsanRt() ||
+@@ -251,17 +256,34 @@
+     return false;
+ 
+   return (Sanitizers.Mask & NeedsUbsanRt & ~TrapSanitizers.Mask) ||
+-         CoverageFeatures;
++    CoverageFeatures;
+ }
+ 
+ bool SanitizerArgs::needsCfiRt() const {
+   return !(Sanitizers.Mask & SanitizerKind::CFI & ~TrapSanitizers.Mask) &&
+-         CfiCrossDso && !ImplicitCfiRuntime;
++         CfiCrossDso && !ImplicitCfiRuntime
++         && !CfiDecouple && !CfiSlowpathDecouple; // S3LAB: Disable this rt when decoupling
+ }
+ 
++// S3LAB: DCFI runtime
++bool SanitizerArgs::needsDCfiRt() const {
++  return Sanitizers.has(SanitizerKind::CFI) && (CfiDecouple || CfiSlowpathDecouple);
++}
++
++// S3LAB: Sidestack runtime
++bool SanitizerArgs::needsSidestackRt() const {
++  return Sanitizers.has(SanitizerKind::ShadowCallStack) && Sidestack;
++}
++
++// S3LAB: Shadow Call Stack runtime
++bool SanitizerArgs::needsScsRt() const {
++  return Sanitizers.has(SanitizerKind::ShadowCallStack) && !Sidestack;
++}
++
+ bool SanitizerArgs::needsCfiDiagRt() const {
+   return (Sanitizers.Mask & SanitizerKind::CFI & ~TrapSanitizers.Mask) &&
+-         CfiCrossDso && !ImplicitCfiRuntime;
++         CfiCrossDso && !ImplicitCfiRuntime
++         && !CfiDecouple && !CfiSlowpathDecouple; // S3LAB: Disable this rt when decoupling
+ }
+ 
+ bool SanitizerArgs::requiresPIE() const {
+@@ -293,6 +315,16 @@
+ 
+   CfiCrossDso = Args.hasFlag(options::OPT_fsanitize_cfi_cross_dso,
+                              options::OPT_fno_sanitize_cfi_cross_dso, false);
++  // S3LAB
++  CfiDecouple = Args.hasFlag(options::OPT_fsanitize_cfi_decouple,
++                             options::OPT_fno_sanitize_cfi_decouple, false);
++  if (!CfiDecouple)
++    CfiSlowpathDecouple = Args.hasFlag(options::OPT_fsanitize_cfi_slowpath_decouple,
++                               options::OPT_fno_sanitize_cfi_slowpath_decouple, false);
++  else
++    CfiSlowpathDecouple = false;
++  Sidestack = Args.hasFlag(options::OPT_fsanitize_sidestack,
++                             options::OPT_fno_sanitize_sidestack, false);
+ 
+   ToolChain::RTTIMode RTTIMode = TC.getRTTIMode();
+ 
+@@ -494,7 +526,8 @@
+         << lastArgumentForMask(D, Args, Kinds & NeedsLTO) << "-flto";
+   }
+ 
+-  if ((Kinds & SanitizerKind::ShadowCallStack) &&
++  // S3LAB: Do not reserve register when decoupling SCS
++  if (((Kinds & SanitizerKind::ShadowCallStack) && !Sidestack) &&
+       ((TC.getTriple().isAArch64() &&
+         !llvm::AArch64::isX18ReservedByDefault(TC.getTriple())) ||
+        TC.getTriple().isRISCV()) &&
+@@ -508,7 +541,8 @@
+   // c++abi-specific  parts of UBSan runtime, and they are not provided by the
+   // toolchain. We don't have a good way to check the latter, so we just
+   // check if the toolchan supports vptr.
+-  if (~Supported & SanitizerKind::Vptr) {
++  // S3LAB: Disable ubsanRtCxx for decoupled cfi
++  if (/*!CfiDecouple && */(~Supported & SanitizerKind::Vptr)) {
+     SanitizerMask KindsToDiagnose = Kinds & ~TrappingKinds & NeedsUbsanCxxRt;
+     // The runtime library supports the Microsoft C++ ABI, but only well enough
+     // for CFI. FIXME: Remove this once we support vptr on Windows.
+@@ -1035,6 +1069,16 @@
+ 
+   if (CfiCrossDso)
+     CmdArgs.push_back("-fsanitize-cfi-cross-dso");
++
++  // S3LAB: decoupled CFI
++  if (CfiDecouple)
++    CmdArgs.push_back("-fsanitize-cfi-decouple");
++  // S3LAB: decoupled slowpath CFI, if the above is not defined
++  else if (CfiSlowpathDecouple)
++    CmdArgs.push_back("-fsanitize-cfi-slowpath-decouple");
++  // S3LAB: decoupled SCS
++  if (Sidestack)
++    CmdArgs.push_back("-fsanitize-sidestack");
+ 
+   if (CfiICallGeneralizePointers)
+     CmdArgs.push_back("-fsanitize-cfi-icall-generalize-pointers");
+diff llvm-project-llvmorg-12.0.1/clang/lib/Driver/ToolChains/CommonArgs.cpp sidecar-llvm/clang/lib/Driver/ToolChains/CommonArgs.cpp
+--- llvm-project-llvmorg-12.0.1/clang/lib/Driver/ToolChains/CommonArgs.cpp	2024-09-30 17:44:27
++++ sidecar-llvm/clang/lib/Driver/ToolChains/CommonArgs.cpp	2024-08-28 10:29:21
+@@ -868,15 +868,31 @@
+     NonWholeStaticRuntimes.push_back("safestack");
+     RequiredSymbols.push_back("__safestack_init");
+   }
++  // S3LAB
++  if (SanArgs.needsSidestackRt() && SanArgs.linkRuntimes()) {
++    StaticRuntimes.push_back("sidestack");
++  }
++  // S3LAB
++  if (SanArgs.needsScsRt() && SanArgs.linkRuntimes()) {
++    StaticRuntimes.push_back("scs");
++  }
+   if (!(SanArgs.needsSharedRt() && SanArgs.needsUbsanRt() && SanArgs.linkRuntimes())) {
+     if (SanArgs.needsCfiRt() && SanArgs.linkRuntimes())
+       StaticRuntimes.push_back("cfi");
++    // S3LAB
++    if (SanArgs.needsDCfiRt() && SanArgs.linkRuntimes()) {
++      StaticRuntimes.push_back("dcfi");
++    }
+     if (SanArgs.needsCfiDiagRt() && SanArgs.linkRuntimes()) {
+       StaticRuntimes.push_back("cfi_diag");
+       if (SanArgs.linkCXXRuntimes())
+         StaticRuntimes.push_back("ubsan_standalone_cxx");
+     }
+   }
++  // S3LAB
++  if (SanArgs.needsSidecarRt() && SanArgs.linkRuntimes()) {
++    StaticRuntimes.push_back("sidecar");
++  }
+   if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes()) {
+     NonWholeStaticRuntimes.push_back("stats");
+     RequiredSymbols.push_back("__sanitizer_stats_register");
+@@ -946,7 +962,7 @@
+   if (AddExportDynamic)
+     CmdArgs.push_back("--export-dynamic");
+ 
+-  if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic)
++  if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic && !SanArgs.hasCfiDecouple())
+     CmdArgs.push_back("--export-dynamic-symbol=__cfi_check");
+ 
+   return !StaticRuntimes.empty() || !NonWholeStaticRuntimes.empty();
+diff llvm-project-llvmorg-12.0.1/compiler-rt/cmake/config-ix.cmake sidecar-llvm/compiler-rt/cmake/config-ix.cmake
+--- llvm-project-llvmorg-12.0.1/compiler-rt/cmake/config-ix.cmake	2024-09-30 17:44:33
++++ sidecar-llvm/compiler-rt/cmake/config-ix.cmake	2024-08-28 10:29:25
+@@ -333,7 +333,11 @@
+ set(ALL_UBSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV64}
+     ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
+ set(ALL_SAFESTACK_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM64} ${MIPS32} ${MIPS64})
++set(ALL_SIDESTACK_SUPPORTED_ARCH ${X86_64} ${ARM64})
++set(ALL_SCS_SUPPORTED_ARCH ${X86_64} ${ARM64})
++set(ALL_SIDECAR_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64})
+ set(ALL_CFI_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${MIPS64})
++set(ALL_DCFI_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64})
+ set(ALL_SCUDO_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${PPC64})
+ set(ALL_SCUDO_STANDALONE_SUPPORTED_ARCH ${X86} ${X86_64})
+ if(APPLE)
+@@ -569,9 +573,21 @@
+   list_intersect(SAFESTACK_SUPPORTED_ARCH
+     ALL_SAFESTACK_SUPPORTED_ARCH
+     SANITIZER_COMMON_SUPPORTED_ARCH)
++  list_intersect(SIDESTACK_SUPPORTED_ARCH
++    ALL_SIDESTACK_SUPPORTED_ARCH
++    SANITIZER_COMMON_SUPPORTED_ARCH)
++  list_intersect(SCS_SUPPORTED_ARCH
++    ALL_SCS_SUPPORTED_ARCH
++    SANITIZER_COMMON_SUPPORTED_ARCH)
++  list_intersect(SIDECAR_SUPPORTED_ARCH
++    ALL_SIDECAR_SUPPORTED_ARCH
++    SANITIZER_COMMON_SUPPORTED_ARCH)
+   list_intersect(CFI_SUPPORTED_ARCH
+     ALL_CFI_SUPPORTED_ARCH
+     SANITIZER_COMMON_SUPPORTED_ARCH)
++  list_intersect(DCFI_SUPPORTED_ARCH
++    ALL_DCFI_SUPPORTED_ARCH
++    SANITIZER_COMMON_SUPPORTED_ARCH)
+   list_intersect(SCUDO_SUPPORTED_ARCH
+     ALL_SCUDO_SUPPORTED_ARCH
+     SANITIZER_COMMON_SUPPORTED_ARCH)
+@@ -611,7 +627,11 @@
+   filter_available_targets(UBSAN_SUPPORTED_ARCH ${ALL_UBSAN_SUPPORTED_ARCH})
+   filter_available_targets(SAFESTACK_SUPPORTED_ARCH
+     ${ALL_SAFESTACK_SUPPORTED_ARCH})
++  filter_available_targets(SIDESTACK_SUPPORTED_ARCH ${ALL_SIDESTACK_SUPPORTED_ARCH})
++  filter_available_targets(SCS_SUPPORTED_ARCH ${ALL_SCS_SUPPORTED_ARCH})
++  filter_available_targets(SIDECAR_SUPPORTED_ARCH ${ALL_SIDECAR_SUPPORTED_ARCH})
+   filter_available_targets(CFI_SUPPORTED_ARCH ${ALL_CFI_SUPPORTED_ARCH})
++  filter_available_targets(DCFI_SUPPORTED_ARCH ${ALL_DCFI_SUPPORTED_ARCH})
+   filter_available_targets(SCUDO_SUPPORTED_ARCH ${ALL_SCUDO_SUPPORTED_ARCH})
+   filter_available_targets(SCUDO_STANDALONE_SUPPORTED_ARCH ${ALL_SCUDO_STANDALONE_SUPPORTED_ARCH})
+   filter_available_targets(XRAY_SUPPORTED_ARCH ${ALL_XRAY_SUPPORTED_ARCH})
+@@ -640,7 +660,7 @@
+ endif()
+ message(STATUS "Compiler-RT supported architectures: ${COMPILER_RT_SUPPORTED_ARCH}")
+ 
+-set(ALL_SANITIZERS asan;dfsan;msan;hwasan;tsan;safestack;cfi;scudo;ubsan_minimal;gwp_asan)
++set(ALL_SANITIZERS asan;dfsan;msan;hwasan;tsan;safestack;sidestack;scs;cfi;dcfi;sidecar;scudo;ubsan_minimal;gwp_asan)
+ set(COMPILER_RT_SANITIZERS_TO_BUILD all CACHE STRING
+     "sanitizers to build if supported on the target (all;${ALL_SANITIZERS})")
+ list_replace(COMPILER_RT_SANITIZERS_TO_BUILD all "${ALL_SANITIZERS}")
+@@ -750,10 +770,37 @@
+   set(COMPILER_RT_HAS_SAFESTACK FALSE)
+ endif()
+ 
++if (COMPILER_RT_HAS_SANITIZER_COMMON AND SIDESTACK_SUPPORTED_ARCH AND
++    OS_NAME MATCHES "Linux")
++  set(COMPILER_RT_HAS_SIDESTACK TRUE)
++else()
++  set(COMPILER_RT_HAS_SIDESTACK FALSE)
++endif()
++
++if (COMPILER_RT_HAS_SANITIZER_COMMON AND SCS_SUPPORTED_ARCH AND
++    OS_NAME MATCHES "Linux")
++  set(COMPILER_RT_HAS_SCS TRUE)
++else()
++  set(COMPILER_RT_HAS_SCS FALSE)
++endif()
++
+ if (COMPILER_RT_HAS_SANITIZER_COMMON AND CFI_SUPPORTED_ARCH)
+   set(COMPILER_RT_HAS_CFI TRUE)
+ else()
+   set(COMPILER_RT_HAS_CFI FALSE)
++endif()
++
++if (COMPILER_RT_HAS_SANITIZER_COMMON AND DCFI_SUPPORTED_ARCH)
++  set(COMPILER_RT_HAS_DCFI TRUE)
++else()
++  set(COMPILER_RT_HAS_DCFI FALSE)
++endif()
++
++if (COMPILER_RT_HAS_SANITIZER_COMMON AND SIDECAR_SUPPORTED_ARCH AND
++    OS_NAME MATCHES "Linux|FreeBSD|NetBSD")
++  set(COMPILER_RT_HAS_SIDECAR TRUE)
++else()
++  set(COMPILER_RT_HAS_SIDECAR FALSE)
+ endif()
+ 
+ #TODO(kostyak): add back Android & Fuchsia when the code settles a bit.
+diff llvm-project-llvmorg-12.0.1/compiler-rt/include/sanitizer/asan_interface.h sidecar-llvm/compiler-rt/include/sanitizer/asan_interface.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/include/sanitizer/asan_interface.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/include/sanitizer/asan_interface.h	2024-08-28 10:29:25
+@@ -319,6 +319,12 @@
+ /// trace. Returns 1 if successfull, 0 if not.
+ int __asan_update_allocation_context(void* addr);
+ 
++
++/// S3LAB
++/// Add n to the number of operands instrumented by the asan pass.
++void __asan_s3lab_stats_inst_ops_add(unsigned int n);
++
++
+ #ifdef __cplusplus
+ }  // extern "C"
+ #endif
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_allocator.cpp sidecar-llvm/compiler-rt/lib/asan/asan_allocator.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_allocator.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_allocator.cpp	2024-08-28 10:29:25
+@@ -198,6 +198,8 @@
+   }
+ 
+   void Recycle(AsanChunk *m) {
++    //S3LAB - h2th3k
++    FUNC_CALLED(Recycle);
+     void *p = get_allocator().GetBlockBegin(m);
+     if (p != m) {
+       // Clear the magic value, as allocator internals may overwrite the
+@@ -210,7 +212,6 @@
+                                         CHUNK_INVALID, memory_order_acquire)) {
+       CHECK_EQ(old_chunk_state, CHUNK_QUARANTINE);
+     }
+-
+     PoisonShadow(m->Beg(),
+                  RoundUpTo(m->UsedSize(), SHADOW_GRANULARITY),
+                  kAsanHeapLeftRedzoneMagic);
+@@ -244,6 +245,9 @@
+ typedef AsanQuarantine::Cache QuarantineCache;
+ 
+ void AsanMapUnmapCallback::OnMap(uptr p, uptr size) const {
++  //S3LAB - h2th3k
++  FUNC_CALLED(OnMap);
++  // BBB
+   PoisonShadow(p, size, kAsanHeapLeftRedzoneMagic);
+   // Statistics.
+   AsanStats &thread_stats = GetCurrentThreadStats();
+@@ -251,6 +255,8 @@
+   thread_stats.mmaped += size;
+ }
+ void AsanMapUnmapCallback::OnUnmap(uptr p, uptr size) const {
++  //S3LAB - h2th3k
++  FUNC_CALLED(OnUnmap);
+   PoisonShadow(p, size, 0);
+   // We are about to unmap a chunk of user memory.
+   // Mark the corresponding shadow memory as not needed.
+@@ -365,10 +371,12 @@
+       uptr end = ac->Beg() + ac->UsedSize();
+       uptr chunk_end = chunk + allocated_size;
+       if (chunk < beg && beg < end && end <= chunk_end) {
++	// S3LAB
++	FUNC_CALLED(RePoisonChunk);
+         // Looks like a valid AsanChunk in use, poison redzones only.
+-        PoisonShadow(chunk, beg - chunk, kAsanHeapLeftRedzoneMagic);
++	PoisonShadow(chunk, beg - chunk, kAsanHeapLeftRedzoneMagic);
+         uptr end_aligned_down = RoundDownTo(end, SHADOW_GRANULARITY);
+-        FastPoisonShadowPartialRightRedzone(
++	FastPoisonShadowPartialRightRedzone(
+             end_aligned_down, end - end_aligned_down,
+             chunk_end - end_aligned_down, kAsanHeapLeftRedzoneMagic);
+         return;
+@@ -480,9 +488,57 @@
+     return true;
+   }
+ 
++// S3LAB: for testing purpose split the poisoning part of Allocate()
++#define DECOUPLED_ALLOCATE
++
++#ifdef ASAN_DECOUPLE
++# define DecoupledAllocate MonitorAllocate
++#elif defined(DECOUPLED_ALLOCATE)
++  ALWAYS_INLINE void DecoupledAllocate(uptr size, uptr alignment, uptr allocated, uptr allocated_size) {
++    // Temporarily actually perform poisoning here to ensure functionality has
++    // been intercepted correctly
++    if (*(u8 *)MEM_TO_SHADOW((uptr)allocated) == 0 && CanPoisonMemory()) {
++      // Heap poisoning is enabled, but the allocator provides an unpoisoned
++      // chunk. This is possible if CanPoisonMemory() was false for some
++      // time, for example, due to flags()->start_disabled.
++      // Anyway, poison the block before using it for anything else.
++      // S3LAB: Already have this value
++      // uptr allocated_size = allocator.GetActuallyAllocatedSize(allocated);
++      PoisonShadow((uptr)allocated, allocated_size, kAsanHeapLeftRedzoneMagic);
++    }
++
++    // Get configuration flags
++    Flags &fl = *flags();
++
++    // Reconstruct rz_size
++    uptr rz_log = ComputeRZLog(size);
++    uptr rz_size = RZLog2Size(rz_log);
++
++    uptr alloc_beg = reinterpret_cast<uptr>(allocated);
++    //uptr alloc_end = alloc_beg + needed_size;
++    uptr user_beg = alloc_beg + rz_size;
++    if (!IsAligned(user_beg, alignment))
++      user_beg = RoundUpTo(user_beg, alignment);
++
++    uptr size_rounded_down_to_granularity =
++        RoundDownTo(size, SHADOW_GRANULARITY);
++    // Unpoison the bulk of the memory region.
++    if (size_rounded_down_to_granularity)
++     PoisonShadow(user_beg, size_rounded_down_to_granularity, 0);
++    // Deal with the end of the region if size is not aligned to granularity.
++    if (size != size_rounded_down_to_granularity && CanPoisonMemory()) {
++      u8 *shadow =
++          (u8 *)MemToShadow(user_beg + size_rounded_down_to_granularity);
++      *shadow = fl.poison_partial ? (size & (SHADOW_GRANULARITY - 1)) : 0;
++    }
++  }
++#endif // DECOUPLED_ALLOCATE
++
+   // -------------------- Allocation/Deallocation routines ---------------
+   void *Allocate(uptr size, uptr alignment, BufferedStackTrace *stack,
+                  AllocType alloc_type, bool can_fill) {
++    //S3LAB - h2th3k
++    FUNC_CALLED(Allocate);
+     if (UNLIKELY(!asan_inited))
+       AsanInitFromRtl();
+     if (RssLimitExceeded()) {
+@@ -547,6 +603,13 @@
+       ReportOutOfMemory(size, stack);
+     }
+ 
++    // S3LAB
++#if defined(ASAN_DECOUPLE) || defined(DECOUPLED_ALLOCATE)
++    // we start saving the arguments required to perform all poisoning
++    // operations
++    uptr dc_allocated = (uptr)allocated;
++    uptr dc_allocated_size = allocator.GetActuallyAllocatedSize(allocated);
++#else
+     if (*(u8 *)MEM_TO_SHADOW((uptr)allocated) == 0 && CanPoisonMemory()) {
+       // Heap poisoning is enabled, but the allocator provides an unpoisoned
+       // chunk. This is possible if CanPoisonMemory() was false for some
+@@ -555,6 +618,7 @@
+       uptr allocated_size = allocator.GetActuallyAllocatedSize(allocated);
+       PoisonShadow((uptr)allocated, allocated_size, kAsanHeapLeftRedzoneMagic);
+     }
++#endif // !(defined(ASAN_DECOUPLE) || defined(DECOUPLED_ALLOCATE))
+ 
+     uptr alloc_beg = reinterpret_cast<uptr>(allocated);
+     uptr alloc_end = alloc_beg + needed_size;
+@@ -572,6 +636,10 @@
+ 
+     m->SetAllocContext(t ? t->tid() : 0, StackDepotPut(*stack));
+ 
++    // S3LAB
++#if defined(ASAN_DECOUPLE) || defined(DECOUPLED_ALLOCATE)
++    DecoupledAllocate(size, alignment, dc_allocated, dc_allocated_size);
++#else
+     uptr size_rounded_down_to_granularity =
+         RoundDownTo(size, SHADOW_GRANULARITY);
+     // Unpoison the bulk of the memory region.
+@@ -583,6 +651,7 @@
+           (u8 *)MemToShadow(user_beg + size_rounded_down_to_granularity);
+       *shadow = fl.poison_partial ? (size & (SHADOW_GRANULARITY - 1)) : 0;
+     }
++#endif // !(defined(ASAN_DECOUPLE) || defined(DECOUPLED_ALLOCATE))
+ 
+     AsanStats &thread_stats = GetCurrentThreadStats();
+     thread_stats.mallocs++;
+@@ -634,6 +703,8 @@
+   // Expects the chunk to already be marked as quarantined by using
+   // AtomicallySetQuarantineFlagIfAllocated.
+   void QuarantineChunk(AsanChunk *m, void *ptr, BufferedStackTrace *stack) {
++    //S3LAB - h2th3k
++    FUNC_CALLED(QuarantineChunk);
+     CHECK_EQ(atomic_load(&m->chunk_state, memory_order_relaxed),
+              CHUNK_QUARANTINE);
+     AsanThread *t = GetCurrentThread();
+@@ -646,7 +717,7 @@
+       if (m->UsedSize() >= kChunkHeader2Size) {  // Skip Header2 in user area.
+         uptr size_to_fill = m->UsedSize() - kChunkHeader2Size;
+         size_to_fill = Min(size_to_fill, (uptr)fl.max_free_fill_size);
+-        REAL(memset)((void *)scribble_start, fl.free_fill_byte, size_to_fill);
++	REAL(memset)((void *)scribble_start, fl.free_fill_byte, size_to_fill);
+       }
+     }
+ 
+@@ -675,6 +746,8 @@
+ 
+   void Deallocate(void *ptr, uptr delete_size, uptr delete_alignment,
+                   BufferedStackTrace *stack, AllocType alloc_type) {
++    //S3LAB - h2th3k
++    FUNC_CALLED(Deallocate);
+     uptr p = reinterpret_cast<uptr>(ptr);
+     if (p == 0) return;
+ 
+@@ -715,6 +788,8 @@
+   }
+ 
+   void *Reallocate(void *old_ptr, uptr new_size, BufferedStackTrace *stack) {
++    //S3LAB - h2th3k
++    //FUNC_CALLED(Reallocate);
+     CHECK(old_ptr && new_size);
+     uptr p = reinterpret_cast<uptr>(old_ptr);
+     uptr chunk_beg = p - kChunkHeaderSize;
+@@ -728,7 +803,7 @@
+     if (new_ptr) {
+       u8 chunk_state = atomic_load(&m->chunk_state, memory_order_acquire);
+       if (chunk_state != CHUNK_ALLOCATED)
+-        ReportInvalidFree(old_ptr, chunk_state, stack);
++	ReportInvalidFree(old_ptr, chunk_state, stack);
+       CHECK_NE(REAL(memcpy), nullptr);
+       uptr memcpy_size = Min(new_size, m->UsedSize());
+       // If realloc() races with free(), we may start copying freed memory.
+@@ -740,6 +815,8 @@
+   }
+ 
+   void *Calloc(uptr nmemb, uptr size, BufferedStackTrace *stack) {
++    //S3LAB
++    //FUNC_CALLED(Calloc);
+     if (UNLIKELY(CheckForCallocOverflow(size, nmemb))) {
+       if (AllocatorMayReturnNull())
+         return nullptr;
+@@ -996,6 +1073,8 @@
+ }
+ 
+ void *asan_realloc(void *p, uptr size, BufferedStackTrace *stack) {
++  //S3LAB
++  //FUNC_CALLED(asan_realloc);
+   if (!p)
+     return SetErrnoOnNull(instance.Allocate(size, 8, stack, FROM_MALLOC, true));
+   if (size == 0) {
+@@ -1015,6 +1094,8 @@
+ }
+ 
+ void *asan_pvalloc(uptr size, BufferedStackTrace *stack) {
++  //S3LAB - h2th3k
++  //FUNC_CALLED(asan_pvalloc);
+   uptr PageSize = GetPageSizeCached();
+   if (UNLIKELY(CheckForPvallocOverflow(size, PageSize))) {
+     errno = errno_ENOMEM;
+@@ -1030,6 +1111,8 @@
+ 
+ void *asan_memalign(uptr alignment, uptr size, BufferedStackTrace *stack,
+                     AllocType alloc_type) {
++  //S3LAB - h2th3k
++  //FUNC_CALLED(asan_memalign);
+   if (UNLIKELY(!IsPowerOfTwo(alignment))) {
+     errno = errno_EINVAL;
+     if (AllocatorMayReturnNull())
+@@ -1041,6 +1124,8 @@
+ }
+ 
+ void *asan_aligned_alloc(uptr alignment, uptr size, BufferedStackTrace *stack) {
++  //S3LAB - h2th3k
++  //FUNC_CALLED(asan_aligned_alloc);
+   if (UNLIKELY(!CheckAlignedAllocAlignmentAndSize(alignment, size))) {
+     errno = errno_EINVAL;
+     if (AllocatorMayReturnNull())
+Only in sidecar-llvm/compiler-rt/lib/asan: asan_decouple.cpp
+Only in sidecar-llvm/compiler-rt/lib/asan: asan_decouple.h
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_descriptions.cpp sidecar-llvm/compiler-rt/lib/asan/asan_descriptions.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_descriptions.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_descriptions.cpp	2024-08-28 10:29:25
+@@ -447,6 +447,7 @@
+     return;
+   }
+ 
++#ifndef ASAN_DECOUPLE
+   bool isStackMemory = false;
+   if (shouldLockThreadRegistry) {
+     ThreadRegistryLock l(&asanThreadRegistry());
+@@ -458,6 +459,7 @@
+     data.kind = kAddressKindStack;
+     return;
+   }
++#endif
+ 
+   if (GetGlobalAddressInformation(addr, access_size, &data.global)) {
+     data.kind = kAddressKindGlobal;
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_descriptions.h sidecar-llvm/compiler-rt/lib/asan/asan_descriptions.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_descriptions.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_descriptions.h	2024-08-28 10:29:25
+@@ -191,7 +191,9 @@
+     union {
+       ShadowAddressDescription shadow;
+       HeapAddressDescription heap;
++#ifndef ASAN_DECOUPLE
+       StackAddressDescription stack;
++#endif
+       GlobalAddressDescription global;
+       uptr addr;
+     };
+@@ -216,8 +218,12 @@
+         return data.shadow.addr;
+       case kAddressKindHeap:
+         return data.heap.addr;
++#ifdef ASAN_DECOUPLE
++	return 0x0;
++#else
+       case kAddressKindStack:
+         return data.stack.addr;
++#endif
+       case kAddressKindGlobal:
+         return data.global.addr;
+     }
+@@ -233,7 +239,11 @@
+       case kAddressKindHeap:
+         return data.heap.Print();
+       case kAddressKindStack:
++#ifdef ASAN_DECOUPLE
++	return;
++#else
+         return data.stack.Print();
++#endif
+       case kAddressKindGlobal:
+         // initialization-order-fiasco has a special Print()
+         return data.global.Print(bug_descr);
+@@ -250,7 +260,11 @@
+     return data.kind == kAddressKindHeap ? &data.heap : nullptr;
+   }
+   const StackAddressDescription *AsStack() const {
++#ifdef ASAN_DECOUPLE
++    return 0;
++#else
+     return data.kind == kAddressKindStack ? &data.stack : nullptr;
++#endif
+   }
+   const GlobalAddressDescription *AsGlobal() const {
+     return data.kind == kAddressKindGlobal ? &data.global : nullptr;
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_errors.cpp sidecar-llvm/compiler-rt/lib/asan/asan_errors.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_errors.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_errors.cpp	2024-08-28 10:29:25
+@@ -303,10 +303,16 @@
+       addr2_description.Address() + length2);
+   Printf("%s", d.Default());
+   scariness.Print();
++#ifndef ASAN_DECOUPLE
+   stack->Print();
++#endif
+   addr1_description.Print();
+   addr2_description.Print();
++#ifdef ASAN_DECOUPLE
++  ReportErrorSummary(bug_type);
++#else
+   ReportErrorSummary(bug_type, stack);
++#endif
+ }
+ 
+ void ErrorStringFunctionSizeOverflow::Print() {
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_errors.h sidecar-llvm/compiler-rt/lib/asan/asan_errors.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_errors.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_errors.h	2024-08-28 10:29:25
+@@ -271,7 +271,34 @@
+   void Print();
+ };
+ 
++#ifdef ASAN_DECOUPLE
+ struct ErrorStringFunctionMemoryRangesOverlap : ErrorBase {
++  uptr length1, length2;
++  AddressDescription addr1_description;
++  AddressDescription addr2_description;
++  const char *function;
++
++  ErrorStringFunctionMemoryRangesOverlap() = default;  // (*)
++  ErrorStringFunctionMemoryRangesOverlap(u32 tid,
++                                         uptr addr1, uptr length1_, uptr addr2,
++                                         uptr length2_, const char *function_)
++      : ErrorBase(tid),
++        length1(length1_),
++        length2(length2_),
++        addr1_description(addr1, length1, /*shouldLockThreadRegistry=*/false),
++        addr2_description(addr2, length2, /*shouldLockThreadRegistry=*/false),
++        function(function_) {
++    char bug_type[100];
++    internal_snprintf(bug_type, sizeof(bug_type), "%s-param-overlap", function);
++    scariness.Clear();
++    scariness.Scare(10, bug_type);
++  }
++  void Print();
++};
++
++#else
++
++struct ErrorStringFunctionMemoryRangesOverlap : ErrorBase {
+   const BufferedStackTrace *stack;
+   uptr length1, length2;
+   AddressDescription addr1_description;
+@@ -296,6 +323,8 @@
+   }
+   void Print();
+ };
++
++#endif
+ 
+ struct ErrorStringFunctionSizeOverflow : ErrorBase {
+   const BufferedStackTrace *stack;
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_fake_stack.cpp sidecar-llvm/compiler-rt/lib/asan/asan_fake_stack.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_fake_stack.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_fake_stack.cpp	2024-08-28 10:29:25
+@@ -25,8 +25,23 @@
+ static const u64 kAllocaRedzoneSize = 32UL;
+ static const u64 kAllocaRedzoneMask = 31UL;
+ 
++#ifdef ASAN_DECOUPLE
++
+ // For small size classes inline PoisonShadow for better performance.
+ ALWAYS_INLINE void SetShadow(uptr ptr, uptr size, uptr class_id, u64 magic) {
++  // S3LAB
++  FUNC_CALLED(SetShadow);
++  MonitorPoisonShadow(ptr, size, static_cast<u8>(magic));
++  // TODO: We can do a similar optimization for small sizes, where 8B at a time
++  // are updated
++}
++
++#else // ASAN_DECOUPLE
++
++// For small size classes inline PoisonShadow for better performance.
++ALWAYS_INLINE void SetShadow(uptr ptr, uptr size, uptr class_id, u64 magic) {
++  // S3LAB
++  FUNC_CALLED(SetShadow);
+   u64 *shadow = reinterpret_cast<u64*>(MemToShadow(ptr));
+   if (SHADOW_SCALE == 3 && class_id <= 6) {
+     // This code expects SHADOW_SCALE=3.
+@@ -41,6 +56,9 @@
+   }
+ }
+ 
++#endif // ASAN_DECOUPLE
++
++
+ FakeStack *FakeStack::Create(uptr stack_size_log) {
+   static uptr kMinStackSizeLog = 16;
+   static uptr kMaxStackSizeLog = FIRST_32_SECOND_64(24, 28);
+@@ -63,6 +81,8 @@
+ }
+ 
+ void FakeStack::Destroy(int tid) {
++  //S3LAB - h2th3k
++  FUNC_CALLED(FakeStack__Destroy);
+   PoisonAll(0);
+   if (Verbosity() >= 2) {
+     InternalScopedString str(kNumberOfSizeClasses * 50);
+@@ -72,7 +92,13 @@
+     Report("T%d: FakeStack destroyed: %s\n", tid, str.data());
+   }
+   uptr size = RequiredSize(stack_size_log_);
++  // S3LAB: Not sure when or why this is needed, but it flushes shadow memory
++  // pages, and those don't live in the app anhy more
++#ifdef ASAN_DECOUPLE
++  MonitorFlushUnneededShadow(reinterpret_cast<uptr>(this), size);
++#else
+   FlushUnneededASanShadowMemory(reinterpret_cast<uptr>(this), size);
++#endif
+   UnmapOrDie(this, size);
+ }
+ 
+@@ -199,6 +225,8 @@
+ }
+ 
+ ALWAYS_INLINE uptr OnMalloc(uptr class_id, uptr size) {
++  // S3LAB
++  FUNC_CALLED(OnMalloc);
+   FakeStack *fs = GetFakeStackFast();
+   if (!fs) return 0;
+   uptr local_stack;
+@@ -211,6 +239,8 @@
+ }
+ 
+ ALWAYS_INLINE void OnFree(uptr ptr, uptr class_id, uptr size) {
++  // S3LAB
++  FUNC_CALLED(OnFree);
+   FakeStack::Deallocate(ptr, class_id);
+   SetShadow(ptr, size, class_id, kMagic8);
+ }
+@@ -262,6 +292,9 @@
+ 
+ SANITIZER_INTERFACE_ATTRIBUTE
+ void __asan_alloca_poison(uptr addr, uptr size) {
++  // S3LAB
++  // Dynamic allocas are handled as a single protected area
++  FUNC_CALLED(__asan_alloca_poison);
+   uptr LeftRedzoneAddr = addr - kAllocaRedzoneSize;
+   uptr PartialRzAddr = addr + size;
+   uptr RightRzAddr = (PartialRzAddr + kAllocaRedzoneMask) & ~kAllocaRedzoneMask;
+@@ -275,8 +308,14 @@
+ 
+ SANITIZER_INTERFACE_ATTRIBUTE
+ void __asan_allocas_unpoison(uptr top, uptr bottom) {
++  //S3LAB - ht2h3k
++  FUNC_CALLED(__asan_allocas_unpoison);
+   if ((!top) || (top > bottom)) return;
++#ifdef ASAN_DECOUPLE
++  MonitorPoisonShadow(top, (bottom - top), 0);
++#else
+   REAL(memset)(reinterpret_cast<void*>(MemToShadow(top)), 0,
+                (bottom - top) / SHADOW_GRANULARITY);
++#endif
+ }
+ } // extern "C"
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_flags.inc sidecar-llvm/compiler-rt/lib/asan/asan_flags.inc
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_flags.inc	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_flags.inc	2024-08-28 10:29:25
+@@ -161,3 +161,7 @@
+ ASAN_FLAG(
+     bool, windows_hook_rtl_allocators, false,
+     "(Windows only) enable hooking of Rtl(Allocate|Free|Size|ReAllocate)Heap.")
++ASAN_FLAG(bool, fake_decouple, false,
++          "If set, just fake decoupling ASan. Message logging is retained but "
++	  "the decoupling device is not used.")
++
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_globals.cpp sidecar-llvm/compiler-rt/lib/asan/asan_globals.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_globals.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_globals.cpp	2024-08-28 10:29:25
+@@ -154,10 +154,16 @@
+   }
+ }
+ 
++
+ // Check ODR violation for given global G by checking if it's already poisoned.
+ // We use this method in case compiler doesn't use private aliases for global
+ // variables.
+ static void CheckODRViolationViaPoisoning(const Global *g) {
++  // S3LAB
++  FUNC_CALLED(CheckODRViolationViaPoisoning);
++#ifdef ASAN_DECOUPLE
++  MonitorCheckODR(g->beg, g->size_with_redzone);
++#else
+   if (__asan_region_is_poisoned(g->beg, g->size_with_redzone)) {
+     // This check may not be enough: if the first global is much larger
+     // the entire redzone of the second global may be within the first global.
+@@ -169,6 +175,7 @@
+                            l->g, FindRegistrationSite(l->g));
+     }
+   }
++#endif
+ }
+ 
+ // Clang provides two different ways for global variables protection:
+@@ -191,10 +198,13 @@
+   return g->odr_indicator > 0;
+ }
+ 
++
+ // Register a global variable.
+ // This function may be called more than once for every global
+ // so we store the globals in a map.
+ static void RegisterGlobal(const Global *g) {
++  //S3LAB
++  FUNC_CALLED(RegisterGlobal);
+   CHECK(asan_inited);
+   if (flags()->report_globals >= 2)
+     ReportGlobal(*g, "Added");
+@@ -235,7 +245,10 @@
+   }
+ }
+ 
++
+ static void UnregisterGlobal(const Global *g) {
++  //S3LAB
++  FUNC_CALLED(UnregisterGlobal);
+   CHECK(asan_inited);
+   if (flags()->report_globals >= 2)
+     ReportGlobal(*g, "Removed");
+@@ -356,6 +369,8 @@
+ 
+ // Register an array of globals.
+ void __asan_register_globals(__asan_global *globals, uptr n) {
++  //S3LAB - h2th3k
++  FUNC_CALLED(__asan_register_globals);
+   if (!flags()->report_globals) return;
+   GET_STACK_TRACE_MALLOC;
+   u32 stack_id = StackDepotPut(stack);
+@@ -397,6 +412,8 @@
+ // Unregister an array of globals.
+ // We must do this when a shared objects gets dlclosed.
+ void __asan_unregister_globals(__asan_global *globals, uptr n) {
++  //S3LAB - h2th3k
++  FUNC_CALLED(__asan_unregister_globals);
+   if (!flags()->report_globals) return;
+   BlockingMutexLock lock(&mu_for_globals);
+   for (uptr i = 0; i < n; i++) {
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interceptors.cpp sidecar-llvm/compiler-rt/lib/asan/asan_interceptors.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interceptors.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_interceptors.cpp	2024-08-28 10:29:25
+@@ -240,6 +240,8 @@
+ 
+ #if ASAN_INTERCEPT_SWAPCONTEXT
+ static void ClearShadowMemoryForContextStack(uptr stack, uptr ssize) {
++  // S3LAB - h2th3k
++  FUNC_CALLED(ClearShadowMemoryForContextStack);
+   // Align to page size.
+   uptr PageSize = GetPageSizeCached();
+   uptr bottom = stack & ~(PageSize - 1);
+@@ -371,6 +373,7 @@
+       uptr from_length = REAL(strlen)(from);
+       ASAN_READ_RANGE(ctx, from, from_length + 1);
+       uptr to_length = REAL(strlen)(to);
++      // TODO: S3LAB use one call to handle both ASAN operation
+       ASAN_READ_STRING_OF_LEN(ctx, to, to_length, to_length);
+       ASAN_WRITE_RANGE(ctx, to + to_length, from_length + 1);
+       // If the copying actually happens, the |from| string should not overlap
+@@ -393,6 +396,7 @@
+     uptr copy_length = Min(size, from_length + 1);
+     ASAN_READ_RANGE(ctx, from, copy_length);
+     uptr to_length = REAL(strlen)(to);
++    // TODO: S3LAB use one call to handle both ASAN operation
+     ASAN_READ_STRING_OF_LEN(ctx, to, to_length, to_length);
+     ASAN_WRITE_RANGE(ctx, to + to_length, from_length + 1);
+     if (from_length > 0) {
+@@ -419,8 +423,13 @@
+   if (flags()->replace_str) {
+     uptr from_size = REAL(strlen)(from) + 1;
+     CHECK_RANGES_OVERLAP("strcpy", to, from_size, from, from_size);
++    // S3LAB
++#ifdef ASAN_DECOUPLE
++    MonitorCheckRegionCopy((uptr)from, (uptr)to, from_size);
++#else
+     ASAN_READ_RANGE(ctx, from, from_size);
+     ASAN_WRITE_RANGE(ctx, to, from_size);
++#endif
+   }
+   return REAL(strcpy)(to, from);
+ }
+@@ -464,8 +473,13 @@
+   if (flags()->replace_str) {
+     uptr from_size = Min(size, MaybeRealStrnlen(from, size) + 1);
+     CHECK_RANGES_OVERLAP("strncpy", to, from_size, from, from_size);
++    // S3LAB
++#ifdef ASAN_DECOUPLE
++    MonitorCheckRegionCopy((uptr)from, (uptr)to, from_size);
++#else
+     ASAN_READ_RANGE(ctx, from, from_size);
+     ASAN_WRITE_RANGE(ctx, to, size);
++#endif
+   }
+   return REAL(strncpy)(to, from, size);
+ }
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interceptors_memintrinsics.h sidecar-llvm/compiler-rt/lib/asan/asan_interceptors_memintrinsics.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interceptors_memintrinsics.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_interceptors_memintrinsics.h	2024-08-28 10:29:25
+@@ -23,6 +23,8 @@
+ 
+ namespace __asan {
+ 
++// S3LAB
++#ifndef ASAN_DECOUPLE
+ // Return true if we can quickly decide that the region is unpoisoned.
+ // We assume that a redzone is at least 16 bytes.
+ static inline bool QuickCheckForUnpoisonedRegion(uptr beg, uptr size) {
+@@ -39,11 +41,51 @@
+            !AddressIsPoisoned(beg + size / 2);
+   return false;
+ }
++#endif //!ASAN_DECOUPLE
+ 
+ struct AsanInterceptorContext {
+   const char *interceptor_name;
+ };
+ 
++// S3LAB
++#ifdef ASAN_DECOUPLE
++
++// memcpy is called during __asan_init() from the internals of printf(...).
++// We do not treat memcpy with to==from as a bug.
++// See http://llvm.org/bugs/show_bug.cgi?id=11763.
++#define ASAN_MEMCPY_IMPL(ctx, to, from, size)                           \
++  do {                                                                  \
++    if (UNLIKELY(!asan_inited)) return internal_memcpy(to, from, size); \
++    if (asan_init_is_running) {                                         \
++      return REAL(memcpy)(to, from, size);                              \
++    }                                                                   \
++    ENSURE_ASAN_INITED();                                               \
++    if (flags()->replace_intrin) {                                      \
++      if (to != from) {                                                 \
++        CHECK_RANGES_OVERLAP("memcpy", to, size, from, size);           \
++      }                                                                 \
++      MonitorCheckRegionCopy((uptr)from, (uptr)to, (uptr)size);		\
++    }                                                                   \
++    return REAL(memcpy)(to, from, size);                                \
++  } while (0)
++
++#define ASAN_MEMMOVE_IMPL(ctx, to, from, size)                           \
++  do {                                                                   \
++    if (UNLIKELY(!asan_inited)) return internal_memmove(to, from, size); \
++    ENSURE_ASAN_INITED();                                                \
++    if (flags()->replace_intrin) {                                       \
++      MonitorCheckRegionCopy((uptr)from, (uptr)to, (uptr)size);          \
++    }                                                                    \
++    return internal_memmove(to, from, size);                             \
++  } while (0)
++
++#define ASAN_READ_RANGE(ctx, offset, size) \
++  MonitorCheckLargeRegion((uptr)offset, (uptr)size, false)
++#define ASAN_WRITE_RANGE(ctx, offset, size) \
++  MonitorCheckLargeRegion((uptr)offset, (uptr)size, true)
++
++#else // ! ASAN_DECOUPLE
++
+ // We implement ACCESS_MEMORY_RANGE, ASAN_READ_RANGE,
+ // and ASAN_WRITE_RANGE as macro instead of function so
+ // that no extra frames are created, and stack trace contains
+@@ -53,6 +95,8 @@
+     uptr __offset = (uptr)(offset);                                     \
+     uptr __size = (uptr)(size);                                         \
+     uptr __bad = 0;                                                     \
++    /* S3LAB */                                                         \
++    FUNC_CALLED(ACCESS_MEMORY_RANGE);                                   \
+     if (__offset > __offset + __size) {                                 \
+       GET_STACK_TRACE_FATAL_HERE;                                       \
+       ReportStringFunctionSizeOverflow(__offset, __size, &stack);       \
+@@ -95,20 +139,6 @@
+     return REAL(memcpy)(to, from, size);                                \
+   } while (0)
+ 
+-// memset is called inside Printf.
+-#define ASAN_MEMSET_IMPL(ctx, block, c, size)                           \
+-  do {                                                                  \
+-    if (UNLIKELY(!asan_inited)) return internal_memset(block, c, size); \
+-    if (asan_init_is_running) {                                         \
+-      return REAL(memset)(block, c, size);                              \
+-    }                                                                   \
+-    ENSURE_ASAN_INITED();                                               \
+-    if (flags()->replace_intrin) {                                      \
+-      ASAN_WRITE_RANGE(ctx, block, size);                               \
+-    }                                                                   \
+-    return REAL(memset)(block, c, size);                                \
+-  } while (0)
+-
+ #define ASAN_MEMMOVE_IMPL(ctx, to, from, size)                           \
+   do {                                                                   \
+     if (UNLIKELY(!asan_inited)) return internal_memmove(to, from, size); \
+@@ -125,6 +155,24 @@
+ #define ASAN_WRITE_RANGE(ctx, offset, size) \
+   ACCESS_MEMORY_RANGE(ctx, offset, size, true)
+ 
++#endif // ! ASAN_DECOUPLE
++
++
++// memset is called inside Printf.
++#define ASAN_MEMSET_IMPL(ctx, block, c, size)                           \
++  do {                                                                  \
++    if (UNLIKELY(!asan_inited)) return internal_memset(block, c, size); \
++    if (asan_init_is_running) {                                         \
++      return REAL(memset)(block, c, size);                              \
++    }                                                                   \
++    ENSURE_ASAN_INITED();                                               \
++    if (flags()->replace_intrin) {                                      \
++      ASAN_WRITE_RANGE(ctx, block, size);                               \
++    }                                                                   \
++    return REAL(memset)(block, c, size);                                \
++  } while (0)
++
++
+ // Behavior of functions like "memcpy" or "strcpy" is undefined
+ // if memory intervals overlap. We report error in this case.
+ // Macro is used to avoid creation of new frames.
+@@ -132,11 +180,26 @@
+                                  const char *offset2, uptr length2) {
+   return !((offset1 + length1 <= offset2) || (offset2 + length2 <= offset1));
+ }
++
++#ifdef ASAN_DECOUPLE
++
+ #define CHECK_RANGES_OVERLAP(name, _offset1, length1, _offset2, length2)   \
+   do {                                                                     \
+     const char *offset1 = (const char *)_offset1;                          \
+     const char *offset2 = (const char *)_offset2;                          \
+     if (RangesOverlap(offset1, length1, offset2, length2)) {               \
++        ReportStringFunctionMemoryRangesOverlap(name, offset1, length1,    \
++                                                offset2, length2, 0); 	   \
++    }                                                                      \
++  } while (0)
++
++#else // ! ASAN_DECOUPLE
++
++#define CHECK_RANGES_OVERLAP(name, _offset1, length1, _offset2, length2)   \
++  do {                                                                     \
++    const char *offset1 = (const char *)_offset1;                          \
++    const char *offset2 = (const char *)_offset2;                          \
++    if (RangesOverlap(offset1, length1, offset2, length2)) {               \
+       GET_STACK_TRACE_FATAL_HERE;                                          \
+       bool suppressed = IsInterceptorSuppressed(name);                     \
+       if (!suppressed && HaveStackTraceBasedSuppressions()) {              \
+@@ -148,6 +211,8 @@
+       }                                                                    \
+     }                                                                      \
+   } while (0)
++
++#endif // ! ASAN_DECOUPLE
+ 
+ }  // namespace __asan
+ 
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interface.inc sidecar-llvm/compiler-rt/lib/asan/asan_interface.inc
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interface.inc	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_interface.inc	2024-08-28 10:29:25
+@@ -106,12 +106,14 @@
+ INTERFACE_FUNCTION(__asan_report_store_n_noabort)
+ INTERFACE_FUNCTION(__asan_set_death_callback)
+ INTERFACE_FUNCTION(__asan_set_error_report_callback)
++#ifndef ASAN_DECOUPLE // Disable when decoupling
+ INTERFACE_FUNCTION(__asan_set_shadow_00)
+ INTERFACE_FUNCTION(__asan_set_shadow_f1)
+ INTERFACE_FUNCTION(__asan_set_shadow_f2)
+ INTERFACE_FUNCTION(__asan_set_shadow_f3)
+ INTERFACE_FUNCTION(__asan_set_shadow_f5)
+ INTERFACE_FUNCTION(__asan_set_shadow_f8)
++#endif
+ INTERFACE_FUNCTION(__asan_stack_free_0)
+ INTERFACE_FUNCTION(__asan_stack_free_1)
+ INTERFACE_FUNCTION(__asan_stack_free_2)
+@@ -168,3 +170,9 @@
+ INTERFACE_WEAK_FUNCTION(__asan_default_options)
+ INTERFACE_WEAK_FUNCTION(__asan_default_suppressions)
+ INTERFACE_WEAK_FUNCTION(__asan_on_error)
++// S3LAB
++INTERFACE_FUNCTION(__asan_s3lab_stats_inst_ops_add)
++INTERFACE_FUNCTION(__asan_s3lab_marker)
++INTERFACE_FUNCTION(__asan_poison_stack_entry)
++INTERFACE_FUNCTION(__asan_poison_stack_entry_bytes)
++INTERFACE_FUNCTION(__asan_poison_f8)
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interface_internal.h sidecar-llvm/compiler-rt/lib/asan/asan_interface_internal.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_interface_internal.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_interface_internal.h	2024-08-28 10:29:25
+@@ -85,6 +85,7 @@
+   SANITIZER_INTERFACE_ATTRIBUTE
+   void __asan_after_dynamic_init();
+ 
++#ifndef ASAN_DECOUPLE // Disable when decoupling
+   // Sets bytes of the given range of the shadow memory into specific value.
+   SANITIZER_INTERFACE_ATTRIBUTE
+   void __asan_set_shadow_00(uptr addr, uptr size);
+@@ -98,6 +99,7 @@
+   void __asan_set_shadow_f5(uptr addr, uptr size);
+   SANITIZER_INTERFACE_ATTRIBUTE
+   void __asan_set_shadow_f8(uptr addr, uptr size);
++#endif
+ 
+   // These two functions are used by instrumented code in the
+   // use-after-scope mode. They mark memory for local variables as
+@@ -254,6 +256,19 @@
+ 
+   SANITIZER_INTERFACE_ATTRIBUTE int __asan_update_allocation_context(
+       void *addr);
++
++  // S3LAB
++#ifdef ASAN_PERF_ANALYZE
++  SANITIZER_INTERFACE_ATTRIBUTE void __asan_s3lab_stats_inst_ops_add(uptr n);
++#endif
++  SANITIZER_INTERFACE_ATTRIBUTE void __asan_s3lab_marker(uptr n);
++#ifdef ASAN_DECOUPLE
++  SANITIZER_INTERFACE_ATTRIBUTE void __asan_poison_stack_entry(uptr addr,
++		  u32 frame_sb_size, u32 argsnum, ...);
++  SANITIZER_INTERFACE_ATTRIBUTE void __asan_poison_stack_entry_bytes(
++		  uptr addr, u32 frame_sb_size, u32 qwords, ...);
++  SANITIZER_INTERFACE_ATTRIBUTE void __asan_poison_f8(uptr addr, uptr size);
++#endif
+ }  // extern "C"
+ 
+ #endif  // ASAN_INTERFACE_INTERNAL_H
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_mac.cpp sidecar-llvm/compiler-rt/lib/asan/asan_mac.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_mac.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_mac.cpp	2024-08-28 10:29:25
+@@ -90,9 +90,12 @@
+ }
+ 
+ void FlushUnneededASanShadowMemory(uptr p, uptr size) {
++  // S3LAB: There no shadow memory, hence, no flushing
++#ifndef ASAN_DECOUPLE
+   // Since asan's mapping is compacting, the shadow chunk may be
+   // not page-aligned, so we only flush the page-aligned portion.
+   ReleaseMemoryPagesToOS(MemToShadow(p), MemToShadow(p + size));
++#endif
+ }
+ 
+ void ReadContextStack(void *context, uptr *stack, uptr *ssize) {
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_mapping.h sidecar-llvm/compiler-rt/lib/asan/asan_mapping.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_mapping.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_mapping.h	2024-08-28 10:29:25
+@@ -14,6 +14,8 @@
+ #define ASAN_MAPPING_H
+ 
+ #include "asan_internal.h"
++// S3LAB
++#include "asan_decouple.h"
+ 
+ // The full explanation of the memory mapping could be found here:
+ // https://github.com/google/sanitizers/wiki/AddressSanitizerAlgorithm
+@@ -374,10 +376,28 @@
+ 
+ namespace __asan {
+ 
+-static inline uptr MemToShadowSize(uptr size) { return size >> SHADOW_SCALE; }
++#ifdef ASAN_DECOUPLE
+ 
+ static inline bool AddrIsInMem(uptr a) {
+   PROFILE_ASAN_MAPPING();
++  return (kLowMemBeg <= a && a <= kHighMemEnd);
++}
++
++static inline uptr MemToShadow(uptr p) {
++  PROFILE_ASAN_MAPPING();
++  //CHECK(false);
++  return 0;
++}
++
++static inline bool AddrIsInShadow(uptr a) {
++  PROFILE_ASAN_MAPPING();
++  return false;
++}
++
++#else // !ASAN_DECOUPLE
++
++static inline bool AddrIsInMem(uptr a) {
++  PROFILE_ASAN_MAPPING();
+   return AddrIsInLowMem(a) || AddrIsInMidMem(a) || AddrIsInHighMem(a) ||
+       (flags()->protect_shadow_gap == 0 && AddrIsInShadowGap(a));
+ }
+@@ -393,13 +413,9 @@
+   return AddrIsInLowShadow(a) || AddrIsInMidShadow(a) || AddrIsInHighShadow(a);
+ }
+ 
+-static inline bool AddrIsAlignedByGranularity(uptr a) {
+-  PROFILE_ASAN_MAPPING();
+-  return (a & (SHADOW_GRANULARITY - 1)) == 0;
+-}
+-
+ static inline bool AddressIsPoisoned(uptr a) {
+   PROFILE_ASAN_MAPPING();
++  FUNC_CALLED(AddressIsPoisoned); // S3LAB
+   if (SANITIZER_MYRIAD2 && !AddrIsInMem(a) && !AddrIsInShadow(a))
+     return false;
+   const uptr kAccessSize = 1;
+@@ -412,6 +428,15 @@
+   }
+   return false;
+ }
++#endif // ASAN_DECOUPLE
++
++static inline uptr MemToShadowSize(uptr size) { return size >> SHADOW_SCALE; }
++
++static inline bool AddrIsAlignedByGranularity(uptr a) {
++  PROFILE_ASAN_MAPPING();
++  return (a & (SHADOW_GRANULARITY - 1)) == 0;
++}
++
+ 
+ // Must be after all calls to PROFILE_ASAN_MAPPING().
+ static const uptr kAsanMappingProfileSize = __LINE__;
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_poisoning.cpp sidecar-llvm/compiler-rt/lib/asan/asan_poisoning.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_poisoning.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_poisoning.cpp	2024-08-28 10:29:25
+@@ -30,7 +30,29 @@
+   return atomic_load(&can_poison_memory, memory_order_acquire);
+ }
+ 
++// S3LAB
++#ifdef ASAN_DECOUPLE
++
+ void PoisonShadow(uptr addr, uptr size, u8 value) {
++  // S3LAB
++  FUNC_CALLED(PoisonShadow);
++  MonitorPoisonShadow(addr, size, value);
++}
++
++void PoisonShadowPartialRightRedzone(uptr addr,
++                                     uptr size,
++                                     uptr redzone_size,
++                                     u8 value) {
++  // S3LAB
++  FUNC_CALLED(PoisonShadowPartialRightRedzone);
++  MonitorPoisonShadowPRR(addr, size, redzone_size, value);
++}
++
++#else // ASAN_DECOUPLE
++
++void PoisonShadow(uptr addr, uptr size, u8 value) {
++  // S3LAB
++  FUNC_CALLED(PoisonShadow);
+   if (value && !CanPoisonMemory()) return;
+   CHECK(AddrIsAlignedByGranularity(addr));
+   CHECK(AddrIsInMem(addr));
+@@ -44,6 +66,8 @@
+                                      uptr size,
+                                      uptr redzone_size,
+                                      u8 value) {
++  // S3LAB
++  FUNC_CALLED(PoisonShadowPartialRightRedzone);
+   if (!CanPoisonMemory()) return;
+   CHECK(AddrIsAlignedByGranularity(addr));
+   CHECK(AddrIsInMem(addr));
+@@ -62,7 +86,21 @@
+   }
+ };
+ 
++#endif // ASAN_DECOUPLE
++
++
++#ifdef ASAN_DECOUPLE
++void AsanPoisonOrUnpoisonIntraObjectRedzone(uptr addr, uptr size, bool poison){
++   // S3LAB
++   FUNC_CALLED(AsanPoisonOrUnpoisonIntraObjectRedzone);
++   MonitorPoisonOrUnpoisonIntraObjectRedzone(addr, size, poison);
++}
++
++#else
++
+ void AsanPoisonOrUnpoisonIntraObjectRedzone(uptr ptr, uptr size, bool poison) {
++  // S3LAB
++  FUNC_CALLED(AsanPoisonOrUnpoisonIntraObjectRedzone);
+   uptr end = ptr + size;
+   if (Verbosity()) {
+     Printf("__asan_%spoison_intra_object_redzone [%p,%p) %zd\n",
+@@ -82,6 +120,7 @@
+   for (; ptr < end; ptr += SHADOW_GRANULARITY)
+     *(u8*)MemToShadow(ptr) = poison ? kAsanIntraObjectRedzone : 0;
+ }
++#endif //ASAN_DECOUPLE
+ 
+ }  // namespace __asan
+ 
+@@ -98,7 +137,51 @@
+ // at least [left, AlignDown(right)).
+ // * if user asks to unpoison region [left, right), the program unpoisons
+ // at most [AlignDown(left), right).
++
++
++// S3LAB
++#ifdef ASAN_DECOUPLE
+ void __asan_poison_memory_region(void const volatile *addr, uptr size) {
++  FUNC_CALLED(__asan_poison_memory_region);
++  MonitorUserPoisonShadow((uptr)addr, size);
++}
++
++void __asan_unpoison_memory_region(void const volatile *addr, uptr size) {
++   FUNC_CALLED(__asan_unpoison_memory_region);
++   MonitorUserUnpoisonShadow((uptr)addr, size);
++}
++
++// This is an exported interface, so we keep.
++// Only used in testing as far as i can tell.
++int __asan_address_is_poisoned(void const volatile *addr) {
++  FUNC_DISABLED();
++  return 0;
++}
++
++// This function is disaabled 
++uptr __asan_region_is_poisoned(uptr beg, uptr size){
++  FUNC_DISABLED();
++  return 0;
++}
++
++/* This is only called by__sanitizer_unaligned_load32 and friends, which not
++ * really used, except when called explicitly from the application. Checking is
++ * similar to other invocations of MonitorCheckRegion(), based on
++ * __asan_region_is_poisoned() */
++#define CHECK_SMALL_REGION_READ(p, size)                                     \
++  do {                                                                       \
++    MonitorCheckSmallRegion(reinterpret_cast<uptr>(p), (uptr)size, false);   \
++  } while (0)
++
++#define CHECK_SMALL_REGION_WRITE(p, size)                                    \
++  do {                                                                       \
++    MonitorCheckSmallRegion(reinterpret_cast<uptr>(p), (uptr)size, true);    \
++  } while (0)
++
++#else // ASAN_DECOUPLE
++
++void __asan_poison_memory_region(void const volatile *addr, uptr size) {
++  FUNC_CALLED(__asan_poison_memory_region);
+   if (!flags()->allow_user_poisoning || size == 0) return;
+   uptr beg_addr = (uptr)addr;
+   uptr end_addr = beg_addr + size;
+@@ -139,6 +222,8 @@
+ }
+ 
+ void __asan_unpoison_memory_region(void const volatile *addr, uptr size) {
++  // S3LAB
++  FUNC_CALLED(__asan_unpoison_memory_region);
+   if (!flags()->allow_user_poisoning || size == 0) return;
+   uptr beg_addr = (uptr)addr;
+   uptr end_addr = beg_addr + size;
+@@ -169,10 +254,14 @@
+ }
+ 
+ int __asan_address_is_poisoned(void const volatile *addr) {
++  // S3LAB
++  FUNC_CALLED(__asan_address_is_poisoned);
+   return __asan::AddressIsPoisoned((uptr)addr);
+ }
+ 
+ uptr __asan_region_is_poisoned(uptr beg, uptr size) {
++  //S3LAB - h2th3k
++  FUNC_CALLED(__asan_region_is_poisoned);
+   if (!size) return 0;
+   uptr end = beg + size;
+   if (SANITIZER_MYRIAD2) {
+@@ -207,67 +296,93 @@
+   return 0;
+ }
+ 
+-#define CHECK_SMALL_REGION(p, size, isWrite)                  \
++
++#define CHECK_SMALL_REGION_READ(p, size)                      \
+   do {                                                        \
+     uptr __p = reinterpret_cast<uptr>(p);                     \
+     uptr __size = size;                                       \
++    /* S3LAB */                                               \
++    FUNC_CALLED(CHECK_SMALL_REGION);                          \
+     if (UNLIKELY(__asan::AddressIsPoisoned(__p) ||            \
+         __asan::AddressIsPoisoned(__p + __size - 1))) {       \
+       GET_CURRENT_PC_BP_SP;                                   \
+       uptr __bad = __asan_region_is_poisoned(__p, __size);    \
+-      __asan_report_error(pc, bp, sp, __bad, isWrite, __size, 0);\
++      __asan_report_error(pc, bp, sp, __bad, 0, __size, 0);\
+     }                                                         \
+   } while (false)
+ 
++#define CHECK_SMALL_REGION_WRITE(p, size)                     \
++  do {                                                        \
++    uptr __p = reinterpret_cast<uptr>(p);                     \
++    uptr __size = size;                                       \
++    /* S3LAB */                                               \
++    FUNC_CALLED(CHECK_SMALL_REGION);                          \
++    if (UNLIKELY(__asan::AddressIsPoisoned(__p) ||            \
++        __asan::AddressIsPoisoned(__p + __size - 1))) {       \
++      GET_CURRENT_PC_BP_SP;                                   \
++      uptr __bad = __asan_region_is_poisoned(__p, __size);    \
++      __asan_report_error(pc, bp, sp, __bad, 1, __size, 0);\
++    }                                                         \
++  } while (false)
++#endif // !ASAN_DECOUPLE
+ 
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ u16 __sanitizer_unaligned_load16(const uu16 *p) {
+-  CHECK_SMALL_REGION(p, sizeof(*p), false);
++  CHECK_SMALL_REGION_READ(p, sizeof(*p));
+   return *p;
+ }
+ 
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ u32 __sanitizer_unaligned_load32(const uu32 *p) {
+-  CHECK_SMALL_REGION(p, sizeof(*p), false);
++  CHECK_SMALL_REGION_READ(p, sizeof(*p));
+   return *p;
+ }
+ 
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ u64 __sanitizer_unaligned_load64(const uu64 *p) {
+-  CHECK_SMALL_REGION(p, sizeof(*p), false);
++  CHECK_SMALL_REGION_READ(p, sizeof(*p));
+   return *p;
+ }
+ 
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ void __sanitizer_unaligned_store16(uu16 *p, u16 x) {
+-  CHECK_SMALL_REGION(p, sizeof(*p), true);
++  CHECK_SMALL_REGION_WRITE(p, sizeof(*p));
+   *p = x;
+ }
+ 
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ void __sanitizer_unaligned_store32(uu32 *p, u32 x) {
+-  CHECK_SMALL_REGION(p, sizeof(*p), true);
++  CHECK_SMALL_REGION_WRITE(p, sizeof(*p));
+   *p = x;
+ }
+ 
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ void __sanitizer_unaligned_store64(uu64 *p, u64 x) {
+-  CHECK_SMALL_REGION(p, sizeof(*p), true);
++  CHECK_SMALL_REGION_WRITE(p, sizeof(*p));
+   *p = x;
+ }
+ 
++// S3LAB
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ void __asan_poison_cxx_array_cookie(uptr p) {
+   if (SANITIZER_WORDSIZE != 64) return;
+   if (!flags()->poison_array_cookie) return;
++#ifdef ASAN_DECOUPLE
++  MonitorPoisonShadow(p, sizeof(uptr), kAsanArrayCookieMagic);
++#else
+   uptr s = MEM_TO_SHADOW(p);
+   *reinterpret_cast<u8*>(s) = kAsanArrayCookieMagic;
++#endif
+ }
+ 
++// S3LAB
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ uptr __asan_load_cxx_array_cookie(uptr *p) {
+   if (SANITIZER_WORDSIZE != 64) return *p;
+   if (!flags()->poison_array_cookie) return *p;
++#ifdef ASAN_DECOUPLE
++  MonitorCheckCXXArrayCookie((uptr)p);
++#else
+   uptr s = MEM_TO_SHADOW(reinterpret_cast<uptr>(p));
+   u8 sval = *reinterpret_cast<u8*>(s);
+   if (sval == kAsanArrayCookieMagic) return *p;
+@@ -281,14 +396,31 @@
+            "expect a double-free report\n");
+     return 0;
+   }
++#endif
+   // The cookie may remain unpoisoned if e.g. it comes from a custom
+   // operator new defined inside a class.
+   return *p;
+ }
+ 
++
++//S3LAB - h2th3k
++#ifdef ASAN_DECOUPLE
++//this function does not check address is aligned or not
++//it first poisons the aligned memory part then poisons the size-aligned_size part
++//it uses kAsanStackUseAfterScopeMagic as poison value
++static void PoisonAlignedStackMemory(uptr addr, uptr size, bool do_poison){
++    //S3LAB - h2th3k
++    FUNC_CALLED(PoisonAlignedStackMemory);
++    MonitorPoisonAlignedStackMemory(addr, size, do_poison);
++}
++
++#else //ASAN_DECOUPLE
++
+ // This is a simplified version of __asan_(un)poison_memory_region, which
+ // assumes that left border of region to be poisoned is properly aligned.
+ static void PoisonAlignedStackMemory(uptr addr, uptr size, bool do_poison) {
++  // S3LAB
++  FUNC_CALLED(PoisonAlignedStackMemory);
+   if (size == 0) return;
+   uptr aligned_size = size & ~(SHADOW_GRANULARITY - 1);
+   PoisonShadow(addr, aligned_size,
+@@ -335,6 +467,9 @@
+   REAL(memset)((void *)addr, 0xf8, size);
+ }
+ 
++#endif //ASAN_DECOUPLE
++
++
+ void __asan_poison_stack_memory(uptr addr, uptr size) {
+   VReport(1, "poisoning: %p %zx\n", (void *)addr, size);
+   PoisonAlignedStackMemory(addr, size, true);
+@@ -345,10 +480,28 @@
+   PoisonAlignedStackMemory(addr, size, false);
+ }
+ 
++//S3LAB 
++#ifdef ASAN_DECOUPLE
++//this function is rarely used as well:https://github.com/stevens-s3lab/search?q=__sanitizer_annotate_contiguous_container
++//might consider disable it 
+ void __sanitizer_annotate_contiguous_container(const void *beg_p,
++                   const void *end_p,
++                   const void *old_mid_p,
++                   const void *new_mid_p){
++  MonitorSanitizerAnnotateContiguousContainer(beg_p, end_p, old_mid_p, new_mid_p);
++  //For implementaton PoisonShadow() has already been handled, Poison via MemToShadow:
++  //*(u8*)MemToShadow(b1) = static_cast<u8>(new_mid - b1); could be translate into
++  //MonitorPoisonShadow(uptr addr, uptr size, u8 value)
++
++}
++#else
++
++void __sanitizer_annotate_contiguous_container(const void *beg_p,
+                                                const void *end_p,
+                                                const void *old_mid_p,
+                                                const void *new_mid_p) {
++  // S3LAB
++  FUNC_CALLED(__sanitizer_annotate_contiguous_container);
+   if (!flags()->detect_container_overflow) return;
+   VPrintf(2, "contiguous_container: %p %p %p %p\n", beg_p, end_p, old_mid_p,
+           new_mid_p);
+@@ -395,9 +548,33 @@
+     *(u8*)MemToShadow(b1) = static_cast<u8>(new_mid - b1);
+   }
+ }
++#endif //ASAN_DECOUPLE
+ 
++
++// S3LAB
++#ifdef ASAN_DECOUPLE
++// Only used by some tests
+ const void *__sanitizer_contiguous_container_find_bad_address(
+     const void *beg_p, const void *mid_p, const void *end_p) {
++  FUNC_DISABLED();
++  return 0;
++}
++
++// Only used by some tests
++int __sanitizer_verify_contiguous_container(const void *beg_p,
++
++                                            const void *mid_p,
++                                            const void *end_p) {
++  FUNC_DISABLED();
++  return 0;
++}
++
++#else // ASAN_DECOUPLE
++
++const void *__sanitizer_contiguous_container_find_bad_address(
++    const void *beg_p, const void *mid_p, const void *end_p) {
++  // S3LAB
++  FUNC_CALLED(__sanitizer_contiguous_container_find_bad_address);
+   if (!flags()->detect_container_overflow)
+     return nullptr;
+   uptr beg = reinterpret_cast<uptr>(beg_p);
+@@ -432,10 +609,14 @@
+ int __sanitizer_verify_contiguous_container(const void *beg_p,
+                                             const void *mid_p,
+                                             const void *end_p) {
++  // S3LAB
++  FUNC_CALLED(__sanitizer_verify_contiguous_container);
+   return __sanitizer_contiguous_container_find_bad_address(beg_p, mid_p,
+                                                            end_p) == nullptr;
+ }
++#endif // !ASAN_DECOUPLE
+ 
++
+ extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+ void __asan_poison_intra_object_redzone(uptr ptr, uptr size) {
+   AsanPoisonOrUnpoisonIntraObjectRedzone(ptr, size, true);
+@@ -449,6 +630,12 @@
+ // --- Implementation of LSan-specific functions --- {{{1
+ namespace __lsan {
+ bool WordIsPoisoned(uptr addr) {
++// S3LAB
++#ifdef ASAN_DECOUPLE
++  // TODO: Consider expanding decoupling on lsan and re-enabling this
++  return false;
++#else
+   return (__asan_region_is_poisoned(addr, sizeof(uptr)) != 0);
++#endif
+ }
+ }
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_poisoning.h sidecar-llvm/compiler-rt/lib/asan/asan_poisoning.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_poisoning.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_poisoning.h	2024-08-28 10:29:25
+@@ -16,6 +16,8 @@
+ #include "asan_mapping.h"
+ #include "sanitizer_common/sanitizer_flags.h"
+ #include "sanitizer_common/sanitizer_platform.h"
++#include "asan_stats.h"
++#include "asan_decouple.h"
+ 
+ namespace __asan {
+ 
+@@ -33,11 +35,34 @@
+                                      uptr redzone_size,
+                                      u8 value);
+ 
++#ifdef ASAN_DECOUPLE
++
+ // Fast versions of PoisonShadow and PoisonShadowPartialRightRedzone that
+ // assume that memory addresses are properly aligned. Use in
+ // performance-critical code with care.
+ ALWAYS_INLINE void FastPoisonShadow(uptr aligned_beg, uptr aligned_size,
+                                     u8 value) {
++  // S3LAB
++  FUNC_CALLED(FastPoisonShadow);
++  MonitorPoisonShadow(aligned_beg, aligned_size, value);
++}
++
++ALWAYS_INLINE void FastPoisonShadowPartialRightRedzone(
++    uptr aligned_addr, uptr size, uptr redzone_size, u8 value) {
++  // S3LAB
++  FUNC_CALLED(FastPoisonShadowPartialRightRedzone);
++  MonitorPoisonShadowPRR(aligned_addr, size, redzone_size, value);
++}
++
++#else // ASAN_DECOUPLE
++
++// Fast versions of PoisonShadow and PoisonShadowPartialRightRedzone that
++// assume that memory addresses are properly aligned. Use in
++// performance-critical code with care.
++ALWAYS_INLINE void FastPoisonShadow(uptr aligned_beg, uptr aligned_size,
++                                    u8 value) {
++  // S3LAB
++  FUNC_CALLED(FastPoisonShadow);
+   DCHECK(!value || CanPoisonMemory());
+ #if SANITIZER_FUCHSIA
+   __sanitizer_fill_shadow(aligned_beg, aligned_size, value,
+@@ -78,6 +103,8 @@
+ 
+ ALWAYS_INLINE void FastPoisonShadowPartialRightRedzone(
+     uptr aligned_addr, uptr size, uptr redzone_size, u8 value) {
++  // S3LAB
++  FUNC_CALLED(FastPoisonShadowPartialRightRedzone);
+   DCHECK(CanPoisonMemory());
+   bool poison_partial = flags()->poison_partial;
+   u8 *shadow = (u8*)MEM_TO_SHADOW(aligned_addr);
+@@ -92,6 +119,9 @@
+     }
+   }
+ }
++
++#endif
++
+ 
+ // Calls __sanitizer::ReleaseMemoryPagesToOS() on
+ // [MemToShadow(p), MemToShadow(p+size)].
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_report.cpp sidecar-llvm/compiler-rt/lib/asan/asan_report.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_report.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_report.cpp	2024-08-28 10:29:25
+@@ -11,6 +11,7 @@
+ // This file contains error reporting code.
+ //===----------------------------------------------------------------------===//
+ 
++
+ #include "asan_errors.h"
+ #include "asan_flags.h"
+ #include "asan_descriptions.h"
+@@ -324,17 +325,34 @@
+   in_report.ReportError(error);
+ }
+ 
++#ifdef ASAN_DECOUPLE
++
+ void ReportStringFunctionMemoryRangesOverlap(const char *function,
+                                              const char *offset1, uptr length1,
+                                              const char *offset2, uptr length2,
+                                              BufferedStackTrace *stack) {
+   ScopedInErrorReport in_report;
+   ErrorStringFunctionMemoryRangesOverlap error(
++      GetCurrentTidOrInvalid(), (uptr)offset1, length1, (uptr)offset2,
++      length2, function);
++  in_report.ReportError(error);
++}
++
++#else
++
++void ReportStringFunctionMemoryRangesOverlap(const char *function,
++                                             const char *offset1, uptr length1,
++                                             const char *offset2, uptr length2,
++                                             BufferedStackTrace *stack) {
++  ScopedInErrorReport in_report;
++  ErrorStringFunctionMemoryRangesOverlap error(
+       GetCurrentTidOrInvalid(), stack, (uptr)offset1, length1, (uptr)offset2,
+       length2, function);
+   in_report.ReportError(error);
+ }
+ 
++#endif
++
+ void ReportStringFunctionSizeOverflow(uptr offset, uptr size,
+                                       BufferedStackTrace *stack) {
+   ScopedInErrorReport in_report;
+@@ -360,6 +378,10 @@
+   in_report.ReportError(error);
+ }
+ 
++#ifdef ASAN_DECOUPLE
++# define CheckForInvalidPointerPair(p1, p2) \
++	MonitorCheckForInvalidPointerPair((uptr)(p1), (uptr)(p2))
++#else // ASAN_DECOUPLE
+ // ----------------------- CheckForInvalidPointerPair ----------- {{{1
+ static NOINLINE void ReportInvalidPointerPair(uptr pc, uptr bp, uptr sp,
+                                               uptr a1, uptr a2) {
+@@ -430,6 +452,7 @@
+     ReportInvalidPointerPair(pc, bp, sp, a1, a2);
+   }
+ }
++#endif // !ASAN_DECOUPLE
+ // ----------------------- Mac-specific reports ----------------- {{{1
+ 
+ void ReportMacMzReallocUnknown(uptr addr, uptr zone_ptr, const char *zone_name,
+@@ -553,10 +576,12 @@
+ extern "C" {
+ SANITIZER_INTERFACE_ATTRIBUTE
+ void __sanitizer_ptr_sub(void *a, void *b) {
++  FUNC_CALLED(__sanitizer_ptr_cmp);
+   CheckForInvalidPointerPair(a, b);
+ }
+ SANITIZER_INTERFACE_ATTRIBUTE
+ void __sanitizer_ptr_cmp(void *a, void *b) {
++  FUNC_CALLED(__sanitizer_ptr_cmp);
+   CheckForInvalidPointerPair(a, b);
+ }
+ } // extern "C"
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_rtl.cpp sidecar-llvm/compiler-rt/lib/asan/asan_rtl.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_rtl.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_rtl.cpp	2024-08-28 10:29:25
+@@ -10,7 +10,6 @@
+ //
+ // Main file of the ASan run-time library.
+ //===----------------------------------------------------------------------===//
+-
+ #include "asan_activation.h"
+ #include "asan_allocator.h"
+ #include "asan_interceptors.h"
+@@ -23,6 +22,7 @@
+ #include "asan_stats.h"
+ #include "asan_suppressions.h"
+ #include "asan_thread.h"
++#include "decouple_device.h"
+ #include "sanitizer_common/sanitizer_atomic.h"
+ #include "sanitizer_common/sanitizer_flags.h"
+ #include "sanitizer_common/sanitizer_libc.h"
+@@ -30,6 +30,8 @@
+ #include "lsan/lsan_common.h"
+ #include "ubsan/ubsan_init.h"
+ #include "ubsan/ubsan_platform.h"
++// S3LAB
++#include "asan_decouple.h"
+ 
+ uptr __asan_shadow_memory_dynamic_address;  // Global interface symbol.
+ int __asan_option_detect_stack_use_after_return;  // Global interface symbol.
+@@ -80,6 +82,7 @@
+ // -------------------------- Globals --------------------- {{{1
+ int asan_inited;
+ bool asan_init_is_running;
++bool asan_s3lab_opened = 0;
+ 
+ #if !ASAN_FIXED_MAPPING
+ uptr kHighMemEnd, kMidMemBeg, kMidMemEnd;
+@@ -146,6 +149,33 @@
+ ASAN_REPORT_ERROR_N(load, false)
+ ASAN_REPORT_ERROR_N(store, true)
+ 
++// S3LAB
++#ifdef ASAN_DECOUPLE
++#define ASAN_MEMORY_ACCESS_CALLBACK_BODY(is_write, size, fatal)                \
++    if (SANITIZER_MYRIAD2 && !AddrIsInMem(addr) && !AddrIsInShadow(addr))      \
++      return;                                                                  \
++    MonitorCheckAccess ## size(addr, is_write, fatal);
++
++#define ASAN_MEMORY_ACCESS_CALLBACK_BODY_EXP(is_write, size, exp_arg)          \
++    if (SANITIZER_MYRIAD2 && !AddrIsInMem(addr) && !AddrIsInShadow(addr))      \
++      return;                                                                  \
++    MonitorCheckAccessExp ## size(addr, is_write, exp_arg, true);
++
++#define ASAN_MEMORY_ACCESS_CALLBACK(type, is_write, size)                      \
++  extern "C" NOINLINE INTERFACE_ATTRIBUTE                                      \
++  void __asan_##type##size(uptr addr) {                                        \
++    ASAN_MEMORY_ACCESS_CALLBACK_BODY(is_write, size, true)                     \
++  }                                                                            \
++  extern "C" NOINLINE INTERFACE_ATTRIBUTE                                      \
++  void __asan_exp_##type##size(uptr addr, u32 exp) {                           \
++    ASAN_MEMORY_ACCESS_CALLBACK_BODY_EXP(is_write, size, exp)                  \
++  }                                                                            \
++  extern "C" NOINLINE INTERFACE_ATTRIBUTE                                      \
++  void __asan_##type##size ## _noabort(uptr addr) {                            \
++    ASAN_MEMORY_ACCESS_CALLBACK_BODY(is_write, size, false)                    \
++  }                                                                            \
++
++#else
+ #define ASAN_MEMORY_ACCESS_CALLBACK_BODY(type, is_write, size, exp_arg, fatal) \
+     if (SANITIZER_MYRIAD2 && !AddrIsInMem(addr) && !AddrIsInShadow(addr))      \
+       return;                                                                  \
+@@ -178,7 +208,8 @@
+   extern "C" NOINLINE INTERFACE_ATTRIBUTE                                      \
+   void __asan_##type##size ## _noabort(uptr addr) {                            \
+     ASAN_MEMORY_ACCESS_CALLBACK_BODY(type, is_write, size, 0, false)           \
+-  }                                                                            \
++  }
++#endif
+ 
+ ASAN_MEMORY_ACCESS_CALLBACK(load, false, 1)
+ ASAN_MEMORY_ACCESS_CALLBACK(load, false, 2)
+@@ -191,9 +222,49 @@
+ ASAN_MEMORY_ACCESS_CALLBACK(store, true, 8)
+ ASAN_MEMORY_ACCESS_CALLBACK(store, true, 16)
+ 
++// S3LAB
++#ifdef ASAN_DECOUPLE
+ extern "C"
+ NOINLINE INTERFACE_ATTRIBUTE
+ void __asan_loadN(uptr addr, uptr size) {
++  MonitorCheckLargeRegion(addr, size, false);
++}
++
++extern "C"
++NOINLINE INTERFACE_ATTRIBUTE
++void __asan_exp_loadN(uptr addr, uptr size, u32 exp) {
++  MonitorCheckLargeRegionExp(addr, size, exp, false);
++}
++
++extern "C"
++NOINLINE INTERFACE_ATTRIBUTE
++void __asan_loadN_noabort(uptr addr, uptr size) {
++  MonitorCheckLargeRegion(addr, size, false);
++}
++
++extern "C"
++NOINLINE INTERFACE_ATTRIBUTE
++void __asan_storeN(uptr addr, uptr size) {
++  MonitorCheckLargeRegion(addr, size, true);
++}
++
++extern "C"
++NOINLINE INTERFACE_ATTRIBUTE
++void __asan_exp_storeN(uptr addr, uptr size, u32 exp) {
++  MonitorCheckLargeRegionExp(addr, size, exp, true);
++}
++
++extern "C"
++NOINLINE INTERFACE_ATTRIBUTE
++void __asan_storeN_noabort(uptr addr, uptr size) {
++  MonitorCheckLargeRegion(addr, size, true);
++}
++
++#else // ASAN_DECOUPLE
++
++extern "C"
++NOINLINE INTERFACE_ATTRIBUTE
++void __asan_loadN(uptr addr, uptr size) {
+   if (__asan_region_is_poisoned(addr, size)) {
+     GET_CALLER_PC_BP_SP;
+     ReportGenericError(pc, bp, sp, addr, false, size, 0, true);
+@@ -244,6 +315,7 @@
+     ReportGenericError(pc, bp, sp, addr, true, size, 0, false);
+   }
+ }
++#endif // !ASAN_DECOUPLE
+ 
+ // Force the linker to keep the symbols for various ASan interface functions.
+ // We want to keep those in the executable in order to let the instrumented
+@@ -294,12 +366,23 @@
+     case 37: __asan_unpoison_stack_memory(0, 0); break;
+     case 38: __asan_region_is_poisoned(0, 0); break;
+     case 39: __asan_describe_address(0); break;
++    // S3LAB
++#ifndef ASAN_DECOUPLE // Disable when decoupling
+     case 40: __asan_set_shadow_00(0, 0); break;
+     case 41: __asan_set_shadow_f1(0, 0); break;
+     case 42: __asan_set_shadow_f2(0, 0); break;
+     case 43: __asan_set_shadow_f3(0, 0); break;
+     case 44: __asan_set_shadow_f5(0, 0); break;
+     case 45: __asan_set_shadow_f8(0, 0); break;
++#else
++    case 40: __asan_poison_stack_entry(0, 0, 0); break;
++    case 41: __asan_poison_stack_entry_bytes(0, 0, 0); break;
++    case 42: __asan_poison_f8(0, 0); break;
++    case 43: __asan_s3lab_marker(0); break;
++#endif
++#ifdef ASAN_PERF_ANALYZE
++    case 46: __asan_s3lab_stats_inst_ops_add(0); break;
++#endif
+   }
+   // clang-format on
+ }
+@@ -396,6 +479,21 @@
+ }();
+ #endif
+ 
++#ifdef ASAN_DECOUPLE 
++static void InitializeDecoupleDevice() {
++  /* execute only once */
++  if (!asan_s3lab_opened) {
++    asan_s3lab_opened = 1;
++
++    /* attach to driver and mmap stimulus ports */
++    DecoupleDeviceInit(flags()->fake_decouple);
++
++    /* enable required ip blocks */
++    DecoupleDeviceEnable();
++  }
++}
++#endif // ASAN_DECOUPLE
++
+ static void AsanInitInternal() {
+   if (LIKELY(asan_inited)) return;
+   SanitizerToolName = "AddressSanitizer";
+@@ -461,7 +559,13 @@
+ 
+   DisableCoreDumperIfNecessary();
+ 
++#ifdef ASAN_DECOUPLE
++  /* initialize hardware tracing */
++  InitializeDecoupleDevice();
++#else
++  // S3LAB: Disable shadow memory allocation
+   InitializeShadowMemory();
++#endif
+ 
+   AsanTSDInit(PlatformTSDDtor);
+   InstallDeadlySignalHandlers(AsanOnDeadlySignal);
+@@ -635,10 +739,23 @@
+ // Initialize as requested from instrumented application code.
+ // We use this call as a trigger to wake up ASan from deactivated state.
+ void __asan_init() {
+-  AsanActivate();
+-  AsanInitInternal();
++	AsanActivate();
++	AsanInitInternal();
+ }
+ 
+ void __asan_version_mismatch_check() {
+   // Do nothing.
++}
++
++// S3LAB
++#ifdef ASAN_PERF_ANALYZE
++void __asan_s3lab_stats_inst_ops_add(uptr n)
++{
++  // Count
++  instc.inst_op_counter += n;
++}
++#endif
++
++void __asan_s3lab_marker(uptr n)
++{
+ }
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_shadow_setup.cpp sidecar-llvm/compiler-rt/lib/asan/asan_shadow_setup.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_shadow_setup.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_shadow_setup.cpp	2024-08-28 10:29:25
+@@ -64,7 +64,7 @@
+   // |kDefaultShadowSentinel|.
+   bool full_shadow_is_available = false;
+   if (shadow_start == kDefaultShadowSentinel) {
+-    shadow_start = FindDynamicShadowStart();
++    shadow_start = FindDynamicShadowStart(); // TODO: This allocates part of it
+     if (SANITIZER_LINUX) full_shadow_is_available = true;
+   }
+   // Update the shadow memory address (potentially) used by instrumentation.
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_stats.cpp sidecar-llvm/compiler-rt/lib/asan/asan_stats.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_stats.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_stats.cpp	2024-08-28 10:29:25
+@@ -20,6 +20,99 @@
+ 
+ namespace __asan {
+ 
++// S3LAB
++#ifdef ASAN_PERF_ANALYZE
++
++struct FuncCallCounters ffreqc;
++struct InstCounters instc;
++
++#define xstr(s) str(s)
++#define str(s) #s
++
++static const char fc_counter_name[MAX_COUNTER][80] = {
++	FC_COUNTER_NAME_INITIALIZER
++};
++
++void FuncCallCounters::Print(void)
++{
++  Printf("Stats: Function call frequency:\n");
++  for (int i = 0; i < MAX_COUNTER;i++) {
++    Printf("  %-60s %10zu\n", fc_counter_name[i], this->counter[i]);
++  }
++}
++
++void InstCounters::Print(void)
++{
++  Printf("Stats: Instrumentation counters:\n");
++  Printf("\tinstrumented operands: %10zu\n", this->inst_op_counter);
++}
++
++#ifdef ASAN_DECOUPLE
++struct PoisonStats pstats;
++struct CheckStats cstats;
++// added by shan
++struct AllocateStats astats;
++
++static const char ps_val_name[VAL_MAX][VAL_BUCKET_NAME_MAXSZ] = {
++	VAL_BUCKET_NAME_INITIALIZER
++};
++
++static const char ps_sz_name[SZ_MAX][SZ_BUCKET_NAME_MAXSZ] = {
++	SZ_BUCKET_NAME_INITIALIZER
++};
++
++static const char violation_name[VIOLATION_MAX][VIOLATION_NAME_MAX] = {
++	VIOLATION_NAME_INITIALIZER
++};
++
++#define PRINT_SIZES(bucket) \
++  do {\
++    Printf("\tSizes:\n");\
++    for (int i = 0; i < SZ_MAX; i++) {\
++	    Printf("\t\t%-10s %10zu\n", ps_sz_name[i], bucket[i]);\
++    }\
++  } while (0)
++
++#define PRINT_BYTES(bytes) \
++  do {\
++    Printf("\tSize bytes:\n");\
++    Printf("\t\t%zu%-9s %10zu\n", 1, " ", bytes[0]);\
++    Printf("\t\t%zu%-9s %10zu\n", 2, " ", bytes[1]);\
++    Printf("\t\t%zu%-9s %10zu\n", 4, " ", bytes[2]);\
++  } while (0)
++
++void PoisonStats::Print(void)
++{
++  Printf("Stats: Poison Stats:\n");
++  Printf("\tValues:\n");
++  for (int i = 0; i < VAL_MAX; i++) {
++	  Printf("\t\t%-10s %10zu\n", ps_val_name[i], pstats.val_bucket[i]);
++  }
++  PRINT_SIZES(pstats.sz_bucket);
++  PRINT_BYTES(pstats.sz_bytes);
++}
++
++
++void CheckStats::Print(void)
++{
++  Printf("Stats: Check Stats:\n");
++  Printf("\tViolations:\n");
++  for (int i = 0; i < VIOLATION_MAX; i++) {
++	  Printf("\t\t%-10s %10zu\n", violation_name[i], cstats.v_bucket[i]);
++  }
++  PRINT_SIZES(cstats.sz_bucket);
++  PRINT_BYTES(cstats.sz_bytes);
++}
++void AllocateStats::Print(void){
++  Printf("Stats: Allocate Stats:\n");
++  Printf("\tAllocated Size:\n");
++  PRINT_SIZES(astats.sz_bucket);
++  PRINT_BYTES(astats.sz_bytes);
++}
++#endif // ASAN_DECOUPLE
++
++#endif // ASAN_PERF_ANALYZE
++
+ AsanStats::AsanStats() {
+   Clear();
+ }
+@@ -128,6 +221,16 @@
+   Printf("Stats: StackDepot: %zd ids; %zdM allocated\n",
+          stack_depot_stats->n_uniq_ids, stack_depot_stats->allocated >> 20);
+   PrintInternalAllocatorStats();
++#ifdef ASAN_PERF_ANALYZE
++  ffreqc.Print();
++  instc.Print();
++# ifdef ASAN_DECOUPLE
++  pstats.Print();
++  cstats.Print();
++  //added by shan
++  astats.Print();
++# endif
++#endif
+ }
+ 
+ }  // namespace __asan
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_stats.h sidecar-llvm/compiler-rt/lib/asan/asan_stats.h
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_stats.h	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_stats.h	2024-08-28 10:29:25
+@@ -15,6 +15,7 @@
+ 
+ #include "asan_allocator.h"
+ #include "asan_internal.h"
++#include "asan_decouple.h"
+ 
+ namespace __asan {
+ 
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_thread.cpp sidecar-llvm/compiler-rt/lib/asan/asan_thread.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/asan_thread.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/asan_thread.cpp	2024-08-28 10:29:25
+@@ -311,6 +311,8 @@
+ #endif  // !SANITIZER_FUCHSIA && !SANITIZER_RTEMS
+ 
+ void AsanThread::ClearShadowForThreadStackAndTLS() {
++  //S3LAB - h2th3k
++  FUNC_CALLED(ClearShadowForThreadStackAndTLS);
+   if (stack_top_ != stack_bottom_)
+     PoisonShadow(stack_bottom_, stack_top_ - stack_bottom_, 0);
+   if (tls_begin_ != tls_end_) {
+@@ -322,8 +324,17 @@
+   }
+ }
+ 
++// S3LAB
++#ifdef ASAN_DECOUPLE
+ bool AsanThread::GetStackFrameAccessByAddr(uptr addr,
+                                            StackFrameAccess *access) {
++  FUNC_DISABLED();
++}
++#else
++bool AsanThread::GetStackFrameAccessByAddr(uptr addr,
++                                           StackFrameAccess *access) {
++  //S3LAB - h2th3k
++  FUNC_CALLED(GetStackFrameAccessByAddr);
+   if (stack_top_ == stack_bottom_)
+     return false;
+ 
+@@ -366,6 +377,7 @@
+   access->frame_descr = (const char*)ptr[1];
+   return true;
+ }
++#endif
+ 
+ uptr AsanThread::GetStackVariableShadowStart(uptr addr) {
+   uptr bottom = 0;
+Only in sidecar-llvm/compiler-rt/lib/asan: decouple_device.cpp
+Only in sidecar-llvm/compiler-rt/lib/asan: decouple_device.h
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/tests/asan_internal_interface_test.cpp sidecar-llvm/compiler-rt/lib/asan/tests/asan_internal_interface_test.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/tests/asan_internal_interface_test.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/tests/asan_internal_interface_test.cpp	2024-08-28 10:29:25
+@@ -13,6 +13,7 @@
+ #include "asan_test_utils.h"
+ #include <vector>
+ 
++#if 0
+ TEST(AddressSanitizerInternalInterface, SetShadow) {
+   std::vector<char> buffer(17, 0xff);
+ 
+@@ -34,3 +35,4 @@
+   __asan_set_shadow_f8((uptr)buffer.data(), buffer.size());
+   EXPECT_EQ(std::vector<char>(buffer.size(), 0xf8), buffer);
+ }
++#endif
+diff llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/tests/asan_noinst_test.cpp sidecar-llvm/compiler-rt/lib/asan/tests/asan_noinst_test.cpp
+--- llvm-project-llvmorg-12.0.1/compiler-rt/lib/asan/tests/asan_noinst_test.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/compiler-rt/lib/asan/tests/asan_noinst_test.cpp	2024-08-28 10:29:25
+@@ -219,6 +219,7 @@
+ }
+ 
+ TEST(AddressSanitizer, ShadowRegionIsPoisonedTest) {
++  // XXX: S3LAB
+   using __asan::kHighMemEnd;
+   // Check that __asan_region_is_poisoned works for shadow regions.
+   uptr ptr = kLowShadowBeg + 200;
+Only in sidecar-llvm/compiler-rt/lib: dcfi
+Only in sidecar-llvm/compiler-rt/lib: scs
+Only in sidecar-llvm/compiler-rt/lib: sidecar
+Only in sidecar-llvm/compiler-rt/lib: sidestack
+Only in sidecar-llvm/compiler-rt/test/asan/TestCases: Makefile
+Only in sidecar-llvm/compiler-rt/test: dcfi
+Only in sidecar-llvm/compiler-rt/test: scs
+Only in sidecar-llvm/compiler-rt/test: sidecar
+Only in sidecar-llvm/compiler-rt/test: sidestack
+diff llvm-project-llvmorg-12.0.1/llvm/include/llvm/CodeGen/Passes.h sidecar-llvm/llvm/include/llvm/CodeGen/Passes.h
+--- llvm-project-llvmorg-12.0.1/llvm/include/llvm/CodeGen/Passes.h	2024-09-30 17:44:41
++++ sidecar-llvm/llvm/include/llvm/CodeGen/Passes.h	2024-08-28 10:29:32
+@@ -420,6 +420,9 @@
+   /// protect against stack-based overflow vulnerabilities.
+   FunctionPass *createSafeStackPass();
+ 
++  // This pass adds the runtime needed for the side stack.
++  FunctionPass *createSideStackPass();
++
+   /// This pass detects subregister lanes in a virtual register that are used
+   /// independently of other lanes and splits them into separate virtual
+   /// registers.
+Only in sidecar-llvm/llvm/include/llvm/Transforms/Instrumentation: SideStack.h
+diff llvm-project-llvmorg-12.0.1/llvm/lib/IR/Attributes.cpp sidecar-llvm/llvm/lib/IR/Attributes.cpp
+--- llvm-project-llvmorg-12.0.1/llvm/lib/IR/Attributes.cpp	2024-09-30 17:44:41
++++ sidecar-llvm/llvm/lib/IR/Attributes.cpp	2024-08-28 10:29:32
+@@ -437,6 +437,8 @@
+     return "sspstrong";
+   if (hasAttribute(Attribute::SafeStack))
+     return "safestack";
++  if (hasAttribute(Attribute::SideStack))
++    return "sidestack";
+   if (hasAttribute(Attribute::ShadowCallStack))
+     return "shadowcallstack";
+   if (hasAttribute(Attribute::StrictFP))
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Passes/PassBuilder.cpp sidecar-llvm/llvm/lib/Passes/PassBuilder.cpp
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Passes/PassBuilder.cpp	2024-09-30 17:44:42
++++ sidecar-llvm/llvm/lib/Passes/PassBuilder.cpp	2024-08-28 10:29:32
+@@ -135,6 +135,7 @@
+ #include "llvm/Transforms/Instrumentation/PoisonChecking.h"
+ #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
+ #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
++#include "llvm/Transforms/Instrumentation/SideStack.h" //Add sidestack pass
+ #include "llvm/Transforms/ObjCARC.h"
+ #include "llvm/Transforms/Scalar/ADCE.h"
+ #include "llvm/Transforms/Scalar/AlignmentFromAssumptions.h"
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Passes/PassRegistry.def sidecar-llvm/llvm/lib/Passes/PassRegistry.def
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Passes/PassRegistry.def	2024-09-30 17:44:42
++++ sidecar-llvm/llvm/lib/Passes/PassRegistry.def	2024-08-28 10:29:32
+@@ -328,6 +328,7 @@
+ FUNCTION_PASS("kmsan", MemorySanitizerPass({0, false, /*Kernel=*/true}))
+ FUNCTION_PASS("tsan", ThreadSanitizerPass())
+ FUNCTION_PASS("memprof", MemProfilerPass())
++//FUNCTION_PASS("sidestack", SideStackPass()) //Add SideStack pass
+ #undef FUNCTION_PASS
+ 
+ #ifndef FUNCTION_PASS_WITH_PARAMS
+Only in sidecar-llvm/llvm/lib/Target/X86: ShadowCallStack.cpp
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Target/X86/X86.h sidecar-llvm/llvm/lib/Target/X86/X86.h
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Target/X86/X86.h	2024-09-30 17:44:43
++++ sidecar-llvm/llvm/lib/Target/X86/X86.h	2024-08-28 10:29:33
+@@ -47,6 +47,11 @@
+ /// transition penalty between functions encoded with AVX and SSE.
+ FunctionPass *createX86IssueVZeroUpperPass();
+ 
++/// This pass instruments the function prolog to save the return address to a
++/// 'side stack' via PTWRITE and the function epilog to check that the return address
++/// did not change during function execution.
++FunctionPass *createShadowCallStackPass();
++
+ /// This pass inserts ENDBR instructions before indirect jump/call
+ /// destinations as part of CET IBT mechanism.
+ FunctionPass *createX86IndirectBranchTrackingPass();
+@@ -149,6 +154,7 @@
+ void initializeEvexToVexInstPassPass(PassRegistry &);
+ void initializeFixupBWInstPassPass(PassRegistry &);
+ void initializeFixupLEAPassPass(PassRegistry &);
++void initializeShadowCallStackPass(PassRegistry &);
+ void initializeFPSPass(PassRegistry &);
+ void initializeWinEHStatePassPass(PassRegistry &);
+ void initializeX86AvoidSFBPassPass(PassRegistry &);
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Target/X86/X86TargetMachine.cpp sidecar-llvm/llvm/lib/Target/X86/X86TargetMachine.cpp
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Target/X86/X86TargetMachine.cpp	2024-09-30 17:44:43
++++ sidecar-llvm/llvm/lib/Target/X86/X86TargetMachine.cpp	2024-08-28 10:29:33
+@@ -68,6 +68,7 @@
+   initializeFixupBWInstPassPass(PR);
+   initializeEvexToVexInstPassPass(PR);
+   initializeFixupLEAPassPass(PR);
++  initializeShadowCallStackPass(PR);
+   initializeFPSPass(PR);
+   initializeX86FixupSetCCPassPass(PR);
+   initializeX86CallFrameOptimizationPass(PR);
+@@ -524,6 +525,8 @@
+     addPass(new X86ExecutionDomainFix());
+     addPass(createBreakFalseDeps());
+   }
++
++  addPass(createShadowCallStackPass());
+ 
+   addPass(createX86IndirectBranchTrackingPass());
+ 
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Transforms/IPO/CrossDSOCFI.cpp sidecar-llvm/llvm/lib/Transforms/IPO/CrossDSOCFI.cpp
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Transforms/IPO/CrossDSOCFI.cpp	2024-09-30 17:44:43
++++ sidecar-llvm/llvm/lib/Transforms/IPO/CrossDSOCFI.cpp	2024-08-28 10:29:33
+@@ -162,6 +162,7 @@
+     MDBuilder(M.getContext()).createBranchWeights((1U << 20) - 1, 1);
+   if (M.getModuleFlag("Cross-DSO CFI") == nullptr)
+     return false;
++  // S3LAB: We want to keep the stub to generate the lower type primitives for the new targets
+   buildCFICheck(M);
+   return true;
+ }
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Transforms/IPO/LowerTypeTests.cpp sidecar-llvm/llvm/lib/Transforms/IPO/LowerTypeTests.cpp
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Transforms/IPO/LowerTypeTests.cpp	2024-09-30 17:44:43
++++ sidecar-llvm/llvm/lib/Transforms/IPO/LowerTypeTests.cpp	2024-08-28 10:29:33
+@@ -80,6 +80,7 @@
+ #include <system_error>
+ #include <utility>
+ #include <vector>
++#include <fstream>
+ 
+ using namespace llvm;
+ using namespace lowertypetests;
+@@ -399,6 +400,9 @@
+   IntegerType *Int64Ty = Type::getInt64Ty(M.getContext());
+   IntegerType *IntPtrTy = M.getDataLayout().getIntPtrType(M.getContext(), 0);
+ 
++  // S3LAB: inline asm function for logging data
++  llvm::InlineAsm *DCfiInlineAsm;
++
+   // Indirect function call index assignment counter for WebAssembly
+   uint64_t IndirectIndex = 1;
+ 
+@@ -511,6 +515,13 @@
+   // Lower the module using the action and summary passed as command line
+   // arguments. For testing purposes only.
+   static bool runForTesting(Module &M);
++
++  // S3LAB: Module marked as DECOUPLE CFI
++  bool DecoupleCfi;
++  bool DecoupleSlowCfi;
++
++  // S3LAB: Typemap output file
++  std::ofstream TypeMapFile;
+ };
+ 
+ struct LowerTypeTests : public ModulePass {
+@@ -731,6 +742,12 @@
+   return false;
+ }
+ 
++static inline uint16_t HashDown(uint64_t data, uint16_t mod)
++{
++	uint16_t v = data ^ (data >> 16) ^ (data >> 32) ^ (data >> 48);
++	return (v % mod);
++}
++
+ /// Lower a llvm.type.test call to its implementation. Returns the value to
+ /// replace the call with.
+ Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
+@@ -738,9 +755,6 @@
+   // Delay lowering if the resolution is currently unknown.
+   if (TIL.TheKind == TypeTestResolution::Unknown)
+     return nullptr;
+-  if (TIL.TheKind == TypeTestResolution::Unsat)
+-    return ConstantInt::getFalse(M.getContext());
+-
+   Value *Ptr = CI->getArgOperand(0);
+   const DataLayout &DL = M.getDataLayout();
+   if (isKnownTypeIdMember(TypeId, DL, Ptr, 0))
+@@ -752,8 +766,47 @@
+ 
+   Value *PtrAsInt = B.CreatePtrToInt(Ptr, IntPtrTy);
+ 
++  // S3LAB: decoupled CFI instrumentation
++  //LLVM_DEBUG({
++      dbgs() << "***  lowering" << *CI << " MD: " << *TypeId << " TIL kind: " << TIL.TheKind << '\n';
++  //});
++  if (DecoupleCfi) {
++    //llvm::ConstantInt::get(Int64Ty, llvm::MD5Hash(MDS->getString()));
++    auto TypeIdStr = llvm::dyn_cast<llvm::MDString>(TypeId);
++    uint64_t TypeIdUint64;
++    if (TypeIdStr) {
++      TypeIdUint64 = llvm::MD5Hash(TypeIdStr->getString());
++    } else {
++      auto TypeIdInt = mdconst::dyn_extract<ConstantInt>(TypeId);
++      assert(TypeIdInt);
++      TypeIdUint64 = TypeIdInt->getZExtValue();
++    }
++    // 2 bits opcode reserved for DCFI + SIDESTACK, this leaves 14 bits for the
++    // TypeId
++    auto HashedTypeId = HashDown(TypeIdUint64, 0x3FFF);
++    static const uint64_t CfiCheckOpcode = 0x1ULL << 62;
++    //LLVM_DEBUG({
++        dbgs() << "***  Hashed TypeId: " << HashedTypeId << '\n';
++    //});
++
++    Value *DCfiVal = B.CreateOr(PtrAsInt, ConstantInt::get(Int64Ty,
++          CfiCheckOpcode | ((uint64_t)HashedTypeId << 48)));
++    B.CreateCall(DCfiInlineAsm, {DCfiVal});
++
++    // The check always returns true, so the compiler can optimize out all the
++    // code previously inserted
++    return ConstantInt::getTrue(M.getContext());
++  }
++
++  // S3LAB: this was moved here since instead of simply disallowing these (or
++  // triggering the CFI slow path), we will try to handle it in the monitor
++
++  if (TIL.TheKind == TypeTestResolution::Unsat)
++    return ConstantInt::getFalse(M.getContext());
++
+   Constant *OffsetedGlobalAsInt =
+       ConstantExpr::getPtrToInt(TIL.OffsetedGlobal, IntPtrTy);
++
+   if (TIL.TheKind == TypeTestResolution::Single)
+     return B.CreateICmpEQ(PtrAsInt, OffsetedGlobalAsInt);
+ 
+@@ -836,8 +889,16 @@
+   Align MaxAlign;
+   uint64_t CurOffset = 0;
+   uint64_t DesiredPadding = 0;
++
++  // S3LAB: Print out types of global sets
++  //LLVM_DEBUG({
++      dbgs() << "*** lowering calls to globals:";
++  //});
+   for (GlobalTypeMember *G : Globals) {
+     auto *GV = cast<GlobalVariable>(G->getGlobal());
++    //LLVM_DEBUG({
++        dbgs() << ' ' << GV->getName();
++    //});
+     Align Alignment =
+         DL.getValueOrABITypeAlignment(GV->getAlign(), GV->getValueType());
+     MaxAlign = std::max(MaxAlign, Alignment);
+@@ -863,7 +924,33 @@
+     if (DesiredPadding > 32)
+       DesiredPadding = alignTo(InitSize, 32) - InitSize;
+   }
++  //LLVM_DEBUG({
++      dbgs() << '\n';
++  //});
+ 
++  // S3LAB: Write targets
++  // XXX: Needs to be finalized for obtaining C++ classes Type Ids
++  if (DecoupleCfi || DecoupleSlowCfi) {
++    for (GlobalTypeMember *GTM : Globals) {
++      // Ideally the TypeId should be stored in the instruction's metadata so we
++      // don't recalculate it later
++      auto Types = GTM->types();
++      uint64_t TypeIdValue = 0;
++      for (auto *Type : Types) {
++        auto *TypeID = Type->getOperand(1).get();
++        if (auto *ConstantIntTypeID = mdconst::dyn_extract<ConstantInt>(TypeID)) {
++          TypeIdValue = ConstantIntTypeID->getZExtValue();
++          auto HashedTypeId = HashDown(TypeIdValue, 0x3FFF);
++
++          if (TypeMapFile.is_open())
++            TypeMapFile << GTM->getGlobal()->getName().str() << ' ' << HashedTypeId << '\n';
++          dbgs() << "***  AT.typemap++ " << GTM->getGlobal()->getName().str() <<
++            ' ' << HashedTypeId << " TypeIds: " << TypeIds.size() << '\n';
++        }
++     }
++    }
++  }
++
+   Constant *NewInit = ConstantStruct::getAnon(M.getContext(), GlobalInits);
+   auto *CombinedGlobal =
+       new GlobalVariable(M, NewInit->getType(), /*isConstant=*/true,
+@@ -871,8 +958,15 @@
+   CombinedGlobal->setAlignment(MaxAlign);
+ 
+   StructType *NewTy = cast<StructType>(NewInit->getType());
+-  lowerTypeTestCalls(TypeIds, CombinedGlobal, GlobalLayout);
+ 
++  // S3LAB: eliminate jump tables when decoupling
++  if (DecoupleCfi) {
++    lowerTypeTestCalls(TypeIds, NULL, GlobalLayout);
++    return;
++  } else {
++    lowerTypeTestCalls(TypeIds, CombinedGlobal, GlobalLayout);
++  }
++
+   // Build aliases pointing to offsets into the combined global for each
+   // global from which we built the combined global, and replace references
+   // to the original globals with references to the aliases.
+@@ -1046,6 +1140,11 @@
+     return;
+ 
+   TypeIdLowering TIL = importTypeId(TypeIdStr->getString());
++  // S3LAB XXX: we do not handle this yet
++  if (DecoupleCfi || DecoupleSlowCfi) {
++    dbgs() << "***LowerTypeTestsModule::importTypeTest\n";
++    abort();
++  }
+   Value *Lowered = lowerTypeTestCall(TypeIdStr, CI, TIL);
+   if (Lowered) {
+     CI->replaceAllUsesWith(Lowered);
+@@ -1060,6 +1159,9 @@
+     std::vector<GlobalAlias *> &AliasesToErase) {
+   assert(F->getType()->getAddressSpace() == 0);
+ 
++  // S3LAB XXX: handle this?
++  dbgs() << "Importing F: " << F->getName() << "\n";
++
+   GlobalValue::VisibilityTypes Visibility = F->getVisibility();
+   std::string Name = std::string(F->getName());
+ 
+@@ -1120,7 +1222,10 @@
+ void LowerTypeTestsModule::lowerTypeTestCalls(
+     ArrayRef<Metadata *> TypeIds, Constant *CombinedGlobalAddr,
+     const DenseMap<GlobalTypeMember *, uint64_t> &GlobalLayout) {
+-  CombinedGlobalAddr = ConstantExpr::getBitCast(CombinedGlobalAddr, Int8PtrTy);
++  // S3LAB: This version does not emit a jumptable and works with
++  // CombinedGlobalAddr == NULL
++  if (CombinedGlobalAddr)
++    CombinedGlobalAddr = ConstantExpr::getBitCast(CombinedGlobalAddr, Int8PtrTy);
+ 
+   // For each type identifier in this disjoint set...
+   for (Metadata *TypeId : TypeIds) {
+@@ -1136,10 +1241,12 @@
+ 
+     ByteArrayInfo *BAI = nullptr;
+     TypeIdLowering TIL;
+-    TIL.OffsetedGlobal = ConstantExpr::getGetElementPtr(
+-        Int8Ty, CombinedGlobalAddr, ConstantInt::get(IntPtrTy, BSI.ByteOffset)),
+-    TIL.AlignLog2 = ConstantInt::get(Int8Ty, BSI.AlignLog2);
+-    TIL.SizeM1 = ConstantInt::get(IntPtrTy, BSI.BitSize - 1);
++    if (CombinedGlobalAddr) { // S3LAB: no jumptables
++      TIL.OffsetedGlobal = ConstantExpr::getGetElementPtr(
++          Int8Ty, CombinedGlobalAddr, ConstantInt::get(IntPtrTy, BSI.ByteOffset)),
++      TIL.AlignLog2 = ConstantInt::get(Int8Ty, BSI.AlignLog2);
++      TIL.SizeM1 = ConstantInt::get(IntPtrTy, BSI.BitSize - 1);
++    }
+     if (BSI.isAllOnes()) {
+       TIL.TheKind = (BSI.BitSize == 1) ? TypeTestResolution::Single
+                                        : TypeTestResolution::AllOnes;
+@@ -1163,10 +1270,13 @@
+ 
+     TypeIdUserInfo &TIUI = TypeIdUsers[TypeId];
+ 
+-    if (TIUI.IsExported) {
+-      uint8_t *MaskPtr = exportTypeId(cast<MDString>(TypeId)->getString(), TIL);
+-      if (BAI)
+-        BAI->MaskPtr = MaskPtr;
++    // S3LAB: no jumptables
++    if (CombinedGlobalAddr) {
++      if (TIUI.IsExported) {
++        uint8_t *MaskPtr = exportTypeId(cast<MDString>(TypeId)->getString(), TIL);
++        if (BAI)
++          BAI->MaskPtr = MaskPtr;
++      }
+     }
+ 
+     // Lower each call to llvm.type.test for this type identifier.
+@@ -1514,9 +1624,51 @@
+   // Build a simple layout based on the regular layout of jump tables.
+   DenseMap<GlobalTypeMember *, uint64_t> GlobalLayout;
+   unsigned EntrySize = getJumpTableEntrySize();
+-  for (unsigned I = 0; I != Functions.size(); ++I)
++
++  // S3LAB
++  //LLVM_DEBUG({
++      dbgs() << "*** lowering calls to functions:";
++  //});
++
++  for (unsigned I = 0; I != Functions.size(); ++I) {
+     GlobalLayout[Functions[I]] = I * EntrySize;
+ 
++    // S3LAB
++    //LLVM_DEBUG({
++        dbgs() << ' ' << Functions[I]->getGlobal()->getName().str();
++    //});
++  }
++
++  // S3LAB
++  //LLVM_DEBUG({
++      dbgs() << '\n';
++  //});
++
++
++  // S3LAB: Write targets
++  if (DecoupleCfi || DecoupleSlowCfi) {
++    // If CFI is not decoupled, there is not constant int TypeId associated
++    // with the targets so the following code will not write anything anyways
++    for (unsigned I = 0; I != Functions.size(); ++I) {
++      // Ideally the TypeId should be stored in the instruction's metadata so we
++      // don't need to recalculate it later
++      GlobalTypeMember *GTM = Functions[I];
++      auto Types = GTM->types();
++      uint64_t TypeIdValue = 0;
++      for (auto *Type : Types) {
++        auto *TypeID = Type->getOperand(1).get();
++        if (auto *ConstantIntTypeID = mdconst::dyn_extract<ConstantInt>(TypeID)) {
++          TypeIdValue = ConstantIntTypeID->getZExtValue();
++          auto HashedTypeId = HashDown(TypeIdValue, 0x3FFF);
++
++          if (TypeMapFile.is_open())
++            TypeMapFile << Functions[I]->getGlobal()->getName().str() << ' ' << HashedTypeId << '\n';
++          dbgs() << "***  AT.typemap " << Functions[I]->getGlobal()->getName().str() << ' ' << HashedTypeId << " TypeIds: " << TypeIds.size() << '\n';
++        }
++      }
++    }
++  }
++
+   Function *JumpTableFn =
+       Function::Create(FunctionType::get(Type::getVoidTy(M.getContext()),
+                                          /* IsVarArg */ false),
+@@ -1528,7 +1680,13 @@
+   auto JumpTable =
+       ConstantExpr::getPointerCast(JumpTableFn, JumpTableType->getPointerTo(0));
+ 
+-  lowerTypeTestCalls(TypeIds, JumpTable, GlobalLayout);
++  // S3LAB: eliminate jump tables when decoupling
++  if (DecoupleCfi) {
++    lowerTypeTestCalls(TypeIds, NULL, GlobalLayout);
++    return;
++  } else {
++    lowerTypeTestCalls(TypeIds, JumpTable, GlobalLayout);
++  }
+ 
+   {
+     ScopedSaveAliaseesAndUsed S(M);
+@@ -1612,6 +1770,7 @@
+     GlobalLayout[GTM] = IndirectIndex++;
+   }
+ 
++  // S3LAB XXX: Support WASM?
+   // The indirect function table index space starts at zero, so pass a NULL
+   // pointer as the subtracted "jump table" offset.
+   lowerTypeTestCalls(TypeIds, ConstantPointerNull::get(Int32PtrTy),
+@@ -1694,6 +1853,34 @@
+   Arch = TargetTriple.getArch();
+   OS = TargetTriple.getOS();
+   ObjectFormat = TargetTriple.getObjectFormat();
++
++  // S3LAB: Create instrumentation function
++  auto *VTy = Type::getVoidTy(M.getContext());
++  if (Arch == Triple::x86 || Arch == Triple::x86_64) {
++    DCfiInlineAsm = llvm::InlineAsm::get(
++        llvm::FunctionType::get(VTy, {Int64Ty}, false),
++        StringRef("ptwrite $0"), StringRef("r"), true);
++  } else {
++    DCfiInlineAsm = llvm::InlineAsm::get(
++        llvm::FunctionType::get(VTy, {Int64Ty}, false),
++        StringRef("nop"), StringRef("r"), true);
++  }
++
++  llvm::NamedMDNode *ModMeta = M.getNamedMetadata("source_file_name");
++  if (ModMeta && ModMeta->getNumOperands() > 0) {
++    llvm::MDNode *MDN = ModMeta->getOperand(0);
++    llvm::MDString *SourceFileNameMD = llvm::dyn_cast<llvm::MDString>(MDN->getOperand(0));
++    if (SourceFileNameMD) {
++      std::string sourceFileName = SourceFileNameMD->getString().str();
++      std::string logFileName = sourceFileName + ".typemap";
++      TypeMapFile.open(logFileName, std::ios::out | std::ios_base::app);
++      if (!TypeMapFile.is_open()) {
++        llvm::errs() << "Error opening file: " << logFileName << "\n";
++      }
++    }
++  } else {
++    llvm::errs() << "Error: source_file_name metadata not found\n";
++  }
+ }
+ 
+ bool LowerTypeTestsModule::runForTesting(Module &M) {
+@@ -1759,6 +1946,9 @@
+     if (isDirectCall(U) && (Old->isDSOLocal() || !IsJumpTableCanonical))
+       continue;
+ 
++    // S3LAB: XXX temporary for debugging
++    // dbgs() << "replaceCfiUses for " << Old->getName() << "\n";
++
+     // Must handle Constants specially, we cannot call replaceUsesOfWith on a
+     // constant because they are uniqued.
+     if (auto *C = dyn_cast<Constant>(U.getUser())) {
+@@ -1786,7 +1976,7 @@
+   Function *TypeTestFunc =
+       M.getFunction(Intrinsic::getName(Intrinsic::type_test));
+ 
+-  if (DropTypeTests && TypeTestFunc) {
++    if (DropTypeTests && TypeTestFunc) {
+     for (auto UI = TypeTestFunc->use_begin(), UE = TypeTestFunc->use_end();
+          UI != UE;) {
+       auto *CI = cast<CallInst>((*UI++).getUser());
+@@ -1893,6 +2083,11 @@
+   // address taken functions in case they are address taken in other modules.
+   const bool CrossDsoCfi = M.getModuleFlag("Cross-DSO CFI") != nullptr;
+ 
++  // S3LAB: Check if this module is decoupled
++  DecoupleCfi = M.getModuleFlag("DECOUPLE CFI") != nullptr;
++  DecoupleSlowCfi = M.getModuleFlag("DECOUPLE SLOW CFI") != nullptr;
++  assert(!(DecoupleCfi && DecoupleSlowCfi));
++
+   struct ExportedFunctionInfo {
+     CfiFunctionLinkage Linkage;
+     MDNode *FuncMD; // {name, linkage, type[, type...]}
+@@ -1908,6 +2103,7 @@
+             AddressTaken.insert(Ref.getGUID());
+ 
+     NamedMDNode *CfiFunctionsMD = M.getNamedMetadata("cfi.functions");
++
+     if (CfiFunctionsMD) {
+       for (auto FuncMD : CfiFunctionsMD->operands()) {
+         assert(FuncMD->getNumOperands() >= 2);
+@@ -2163,12 +2359,13 @@
+     for (GlobalClassesTy::member_iterator MI =
+              GlobalClasses.member_begin(S.first);
+          MI != GlobalClasses.member_end(); ++MI) {
+-      if (MI->is<Metadata *>())
++      if (MI->is<Metadata *>()) {
+         TypeIds.push_back(MI->get<Metadata *>());
+-      else if (MI->is<GlobalTypeMember *>())
++      } else if (MI->is<GlobalTypeMember *>()) {
+         Globals.push_back(MI->get<GlobalTypeMember *>());
+-      else
++      } else {
+         ICallBranchFunnels.push_back(MI->get<ICallBranchFunnel *>());
++      }
+     }
+ 
+     // Order type identifiers by unique ID for determinism. This ordering is
+@@ -2250,6 +2447,10 @@
+     }
+   }
+ 
++  if (TypeMapFile.is_open()) {
++    TypeMapFile.close();
++  }
++
+   return true;
+ }
+ 
+@@ -2262,6 +2463,7 @@
+     Changed =
+         LowerTypeTestsModule(M, ExportSummary, ImportSummary, DropTypeTests)
+             .lower();
++
+   if (!Changed)
+     return PreservedAnalyses::all();
+   return PreservedAnalyses::none();
+diff llvm-project-llvmorg-12.0.1/llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp sidecar-llvm/llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp
+--- llvm-project-llvmorg-12.0.1/llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp	2024-09-30 17:46:30
++++ sidecar-llvm/llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp	2024-08-28 10:29:33
+@@ -87,11 +87,30 @@
+ #include <sstream>
+ #include <string>
+ #include <tuple>
++// S3LAB
++#include "../../../../../sidecar-monitors/sideasan/asan_decouple.h"
+ 
++
+ using namespace llvm;
+ 
+ #define DEBUG_TYPE "asan"
+ 
++// S3LAB Debugging stuff
++#define DASAN
++#if defined(DASAN) // && defined(DEBUG) // Consider only activating these for Debug builds
++# define DASAN_DEBUG(X) do { if (ClDebug) { X; } } while (false)
++# define DASAN_MARKER(X) do { if (ClDebug) { X; } } while (false)
++#else
++# define DASAN_DEBUG(X) do { } while (false)
++# define DASAN_MARKER(X) do { } while (false)
++#endif
++
++// S3LAB control what is enabled
++#define ENABLE_ACCESS_CHECKS
++#define ENABLE_FSP_STATIC
++#define ENABLE_INSTRUMENT_FUNCTION
++#define ENABLE_INSTRUMENT_MODULE
++
+ static const uint64_t kDefaultShadowScale = 3;
+ static const uint64_t kDefaultShadowOffset32 = 1ULL << 29;
+ static const uint64_t kDefaultShadowOffset64 = 1ULL << 44;
+@@ -129,7 +148,6 @@
+ static const size_t kMaxStackMallocSize = 1 << 16;  // 64K
+ static const uintptr_t kCurrentStackFrameMagic = 0x41B58AB3;
+ static const uintptr_t kRetiredStackFrameMagic = 0x45E0360E;
+-
+ const char kAsanModuleCtorName[] = "asan.module_ctor";
+ const char kAsanModuleDtorName[] = "asan.module_dtor";
+ static const uint64_t kAsanCtorAndDtorPriority = 1;
+@@ -173,6 +191,25 @@
+ const char kAsanAllocaPoison[] = "__asan_alloca_poison";
+ const char kAsanAllocasUnpoison[] = "__asan_allocas_unpoison";
+ 
++// S3LAB
++// Monitor functions
++#ifdef ASAN_DECOUPLE
++static const char kAsanPoisonStackEntry[] = "__asan_poison_stack_entry";
++static const char kAsanPoisonStackEntryBytes[] = "__asan_poison_stack_entry_bytes";
++static const char kAsanPoisonF8[] = "__asan_poison_f8";
++static const int64_t kAsanStmPort64 = 0x7fff84a00018;
++//static const int32_t kAsanStmPort32 = 0x7FF2a018;
++#endif
++// Performance monitoring functions
++#ifdef ASAN_PERF_ANALYZE
++static const char kAsanS3labStatsInstrumentedOperandsAdd[] =
++    "__asan_s3lab_stats_inst_ops_add";
++#endif
++// Debug functions
++#ifdef DASAN
++static const char kAsanS3labMarker[] = "__asan_s3lab_marker";
++#endif
++
+ // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
+ static const size_t kNumberOfAccessSizes = 5;
+ 
+@@ -400,6 +437,11 @@
+ static cl::opt<int> ClDebugMax("asan-debug-max", cl::desc("Debug max inst"),
+                                cl::Hidden, cl::init(-1));
+ 
++// S3LAB flags
++static cl::opt<bool> ClDecouple("asan-decouple",
++    cl::desc("ensures we are decoupling or not"),
++    cl::Hidden, cl::init(false));
++
+ STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
+ STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
+ STATISTIC(NumOptimizedAccessesToGlobalVar,
+@@ -685,6 +727,14 @@
+   FunctionCallee AsanHandleNoReturnFunc;
+   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
+   Constant *AsanShadowGlobal;
++  // S3LAB
++#ifdef ASAN_PERF_ANALYZE
++  FunctionCallee AsanS3labStatsInstrumentedOperandsAddFunction;
++#endif
++  // S3LAB: Marker function for assisting in debugging
++#ifdef DASAN
++  FunctionCallee AsanS3labMarkerFunction;
++#endif
+ 
+   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
+   FunctionCallee AsanErrorCallback[2][2][kNumberOfAccessSizes];
+@@ -694,6 +744,20 @@
+   FunctionCallee AsanErrorCallbackSized[2][2];
+   FunctionCallee AsanMemoryAccessCallbackSized[2][2];
+ 
++  // S3LAB
++#ifdef ASAN_DECOUPLE
++  // This array is indexed by Experiment and log2(AccessSize).
++  uint8_t CheckMsgOpcode[2][kNumberOfAccessSizes];
++  void createMsgWrite(IRBuilder<> &IRB, Value *Msg);
++# ifdef USE_PTWRITE
++  // Inline assembly func performing PTWRITE
++  InlineAsm *PTWriteAsm, *PTWriteAsm32;
++# else
++  // STM port pointers
++  Value *PortPtr, *PortPtr32;
++# endif
++#endif
++
+   FunctionCallee AsanMemmove, AsanMemcpy, AsanMemset;
+   Value *LocalDynamicShadow = nullptr;
+   const GlobalsMetadata &GlobalsMD;
+@@ -888,6 +952,12 @@
+ 
+   FunctionCallee AsanStackMallocFunc[kMaxAsanStackMallocSizeClass + 1],
+       AsanStackFreeFunc[kMaxAsanStackMallocSizeClass + 1];
++  //S3LAB
++#ifdef ASAN_DECOUPLE
++  FunctionCallee AsanPoisonStackEntryFunc, AsanPoisonStackEntryBytesFunc;
++  FunctionCallee AsanPoisonF8Func;
++  FunctionCallee AsanPoisonFunc[0x100] = {};
++#endif
+   FunctionCallee AsanSetShadowFunc[0x100] = {};
+   FunctionCallee AsanPoisonStackMemoryFunc, AsanUnpoisonStackMemoryFunc;
+   FunctionCallee AsanAllocaPoisonFunc, AsanAllocasUnpoisonFunc;
+@@ -958,6 +1028,31 @@
+   void processStaticAllocas();
+   void processDynamicAllocas();
+ 
++  // S3LAB
++#ifdef ASAN_DECOUPLE
++  void MonitorMessage96(Value *Address, IRBuilder<> &IRB,
++    uint8_t OpCode, uint8_t ExtraVal, size_t Size);
++  void MonitorMessage89(Value *Address, IRBuilder<> &IRB,
++    uint8_t OpCode, uint8_t ExtraVal, size_t Size);
++  void MonitorPoisonStackEntry(Value *LocalStackBase, IRBuilder<> &IRB,
++      const SmallVectorImpl<ASanStackVariableDescription> &Vars,
++      const SmallVectorImpl<uint8_t> &SBAfter, bool UseCalls);
++  void MonitorPoisonStackEntryInline(Value *Address, IRBuilder<> &IRB,
++      uint8_t OpCode, uint8_t ExtraVal, uint16_t SBSize,
++      const ArrayRef<uint64_t> QWords);
++  void MonitorPoisonStackEntryCall(Value *Address,
++      IRBuilder<> &IRB, size_t SBSize, size_t QWordsNum,
++      const ArrayRef<uint64_t> QWords, const FunctionCallee &FC);
++  inline void MonitorPoisonWithValue(Value *Address, IRBuilder<> &IRB,
++      size_t Size, uint8_t PoisonVal) {
++    MonitorMessage96(Address, IRB, POISON_WITH_VALUE, PoisonVal, Size);
++  }
++  inline void MonitorPoisonAlignedStackMemory(Value *Address, IRBuilder<> &IRB,
++      size_t Size, bool Poison) {
++    MonitorMessage89(Address, IRB, POISON_ALIGNED_STACK_MEM, (uint8_t)(Poison), Size);
++  }
++#endif
++
+   void createDynamicAllocasInitStorage();
+ 
+   // ----------------------- Visitors.
+@@ -976,9 +1071,11 @@
+   /// Collect all CatchReturnInst instructions.
+   void visitCleanupReturnInst(CleanupReturnInst &CRI) { RetVec.push_back(&CRI); }
+ 
++  // S3LAB: unpoison dynamic alloc by calling a function in the runtime
+   void unpoisonDynamicAllocasBeforeInst(Instruction *InstBefore,
+                                         Value *SavedStack) {
+     IRBuilder<> IRB(InstBefore);
++
+     Value *DynamicAreaPtr = IRB.CreatePtrToInt(SavedStack, IntptrTy);
+     // When we insert _asan_allocas_unpoison before @llvm.stackrestore, we
+     // need to adjust extracted SP to compute the address of the most recent
+@@ -1471,10 +1568,15 @@
+   return G->hasInitializer() && !GlobalsMD.get(G).IsDynInit;
+ }
+ 
++// S3LAB: Handle pointer comparison or subtraction checks by calling a function
++// in the runtime. Not a standard ASAN check
+ void AddressSanitizer::instrumentPointerComparisonOrSubtraction(
+     Instruction *I) {
+   IRBuilder<> IRB(I);
++
++  // Function that will be called
+   FunctionCallee F = isa<ICmpInst>(I) ? AsanPtrCmpFunction : AsanPtrSubFunction;
++  // Parameters 
+   Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
+   for (Value *&i : Param) {
+     if (i->getType()->isPointerTy())
+@@ -1489,15 +1591,18 @@
+                                 uint32_t TypeSize, bool IsWrite,
+                                 Value *SizeArgument, bool UseCalls,
+                                 uint32_t Exp) {
++#ifdef ENABLE_ACCESS_CHECKS // S3LAB
+   // Instrument a 1-, 2-, 4-, 8-, or 16- byte access with one check
+   // if the data is properly aligned.
+   if ((TypeSize == 8 || TypeSize == 16 || TypeSize == 32 || TypeSize == 64 ||
+        TypeSize == 128) &&
+-      (!Alignment || *Alignment >= Granularity || *Alignment >= TypeSize / 8))
++      //false && // S3LAB: force other path for testing
++      (!Alignment || *Alignment >= Granularity || *Alignment >= TypeSize / 8))  
+     return Pass->instrumentAddress(I, InsertBefore, Addr, TypeSize, IsWrite,
+-                                   nullptr, UseCalls, Exp);
++                                   nullptr, UseCalls, Exp);                                    
+   Pass->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeSize,
+                                          IsWrite, nullptr, UseCalls, Exp);
++#endif
+ }
+ 
+ static void instrumentMaskedLoadOrStore(AddressSanitizer *Pass,
+@@ -1641,6 +1746,26 @@
+   return IRB.CreateICmpSGE(LastAccessedByte, ShadowValue);
+ }
+ 
++#ifdef ASAN_DECOUPLE
++void AddressSanitizer::createMsgWrite(IRBuilder<> &IRB, Value *Msg)
++{
++#ifndef NOMESSAGES
++#ifdef USE_PTWRITE
++  if (Msg->getType()->isIntegerTy(32))
++    IRB.CreateCall(PTWriteAsm32, { Msg });
++  else
++    IRB.CreateCall(PTWriteAsm, { Msg });
++#else
++  if (Msg->getType()->isIntegerTy(32))
++    IRB.CreateStore(Msg, PortPtr32, true);
++  else
++    IRB.CreateStore(Msg, PortPtr, true);
++#endif
++#endif // NOMESSAGES
++}
++#endif // ASAN_DECOUPLE
++
++// S3LAB: handle generic access checks
+ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
+                                          Instruction *InsertBefore, Value *Addr,
+                                          uint32_t TypeSize, bool IsWrite,
+@@ -1649,6 +1774,7 @@
+   bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
+ 
+   IRBuilder<> IRB(InsertBefore);
++
+   Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
+   size_t AccessSizeIndex = TypeSizeToSizeIndex(TypeSize);
+ 
+@@ -1662,6 +1788,36 @@
+     return;
+   }
+ 
++  // S3LAB: Added start marker
++  DASAN_MARKER(IRB.CreateCall(this->AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 21010)}));
++  
++#ifdef ASAN_DECOUPLE
++  if (IsMyriad)
++    abort();
++
++  // Prepare constant part of message
++  uint64_t data = (uint64_t)CheckMsgOpcode[(Exp != 0)][AccessSizeIndex];
++  data |= (IsWrite == true) << 15 | (Recover == false) << 14;
++
++  // Shift address
++  // S3LAB TODO: Eliminate shift by storing address in LS bytes
++  Value *ShiftedAddr = IRB.CreateShl(AddrLong, ConstantInt::get(IntptrTy, 16));
++  // Combine address with constant part
++  Value *Msg = IRB.CreateOr(ShiftedAddr, ConstantInt::get(IntptrTy, data));
++
++  // Write message
++  createMsgWrite(IRB, Msg);
++
++  if (Exp != 0) {
++    createMsgWrite(IRB, ConstantInt::get(IRB.getInt32Ty(), Exp));
++  }
++
++
++  DASAN_MARKER(IRB.CreateCall(this->AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 21011)}));
++
++#else // ASAN_DECOUPLE
++  // S3LAB: XXX Crashes x264_s when compiled with -O3
++
+   if (IsMyriad) {
+     // Strip the cache bit and do range check.
+     // AddrLong &= ~kMyriadCacheBitMask32
+@@ -1687,6 +1843,8 @@
+   Value *CmpVal = Constant::getNullValue(ShadowTy);
+   Value *ShadowValue =
+       IRB.CreateLoad(ShadowTy, IRB.CreateIntToPtr(ShadowPtr, ShadowPtrTy));
++  // S3LAB: Added end marker
++  DASAN_MARKER(IRB.CreateCall(this->AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 21011)}));
+ 
+   Value *Cmp = IRB.CreateICmpNE(ShadowValue, CmpVal);
+   size_t Granularity = 1ULL << Mapping.Scale;
+@@ -1717,12 +1875,15 @@
+   Instruction *Crash = generateCrashCode(CrashTerm, AddrLong, IsWrite,
+                                          AccessSizeIndex, SizeArgument, Exp);
+   Crash->setDebugLoc(OrigIns->getDebugLoc());
++#endif // !ASAN_DECOUPLE
+ }
+ 
+ // Instrument unusual size or unusual alignment.
+ // We can not do it with a single check, so we do 1-byte check for the first
+ // and the last bytes. We call __asan_report_*_n(addr, real_size) to be able
+ // to report the actual access size.
++//
++// S3LAB: handles unusual-size access checks
+ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
+     Instruction *I, Instruction *InsertBefore, Value *Addr, uint32_t TypeSize,
+     bool IsWrite, Value *SizeArgument, bool UseCalls, uint32_t Exp) {
+@@ -1737,11 +1898,55 @@
+       IRB.CreateCall(AsanMemoryAccessCallbackSized[IsWrite][1],
+                      {AddrLong, Size, ConstantInt::get(IRB.getInt32Ty(), Exp)});
+   } else {
++    // S3LAB: Added start marker
++    DASAN_MARKER(IRB.CreateCall(this->AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 31100)}));
++#ifdef ASAN_DECOUPLE
++    // Shift address
++    Value *ShiftedAddr = IRB.CreateShl(AddrLong, ConstantInt::get(IntptrTy, 16));
++
++    // Prepare constant part of message
++    if ((TypeSize / 8) <= 64) {
++      uint64_t data = (Exp == 0)? CHECK_SMALL_REGION: CHECK_SMALL_REGION_EXP;
++      data |= (IsWrite == true) << 15 | (Recover == false) << 14;
++      data |= ((TypeSize / 8) - 1) << 8;
++
++      // Combine address with constant part
++      Value *Msg = IRB.CreateOr(ShiftedAddr, ConstantInt::get(IntptrTy, data));
++
++      // Write message
++      createMsgWrite(IRB, Msg);
++
++      if (Exp != 0) {
++	createMsgWrite(IRB, ConstantInt::get(IRB.getInt32Ty(), Exp));
++      }
++    } else {
++      uint64_t data = (Exp == 0)? CHECK_LARGE_REGION : CHECK_LARGE_REGION_EXP;
++      data |= (IsWrite == true) << 15 | (Recover == false) << 14;
++
++      // Combine address with constant part
++      Value *Msg = IRB.CreateOr(ShiftedAddr, ConstantInt::get(IntptrTy, data));
++
++      // Write message
++      createMsgWrite(IRB, Msg);
++
++      if (Exp == 0) {
++	createMsgWrite(IRB, ConstantInt::get(IRB.getInt32Ty(), TypeSize / 8));
++      } else {
++        data = Exp;
++        data = (data << 32) | (TypeSize / 8);
++	createMsgWrite(IRB, ConstantInt::get(IRB.getInt64Ty(), data));
++      }
++    }
++#else // ASAN_DECOUPLE
+     Value *LastByte = IRB.CreateIntToPtr(
+         IRB.CreateAdd(AddrLong, ConstantInt::get(IntptrTy, TypeSize / 8 - 1)),
+         Addr->getType());
+     instrumentAddress(I, InsertBefore, Addr, 8, IsWrite, Size, false, Exp);
+     instrumentAddress(I, InsertBefore, LastByte, 8, IsWrite, Size, false, Exp);
++#endif // !ASAN_DECOUPLE
++
++    // S3LAB added end marker
++    DASAN_MARKER(IRB.CreateCall(this->AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 31101)}));
+   }
+ }
+ 
+@@ -2478,6 +2683,18 @@
+ }
+ 
+ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
++#ifdef ASAN_DECOUPLE
++  if (!ClDecouple) {
++    dbgs() << "This is decoupled Asan, but you are running without -asan-decouple\n";
++    exit(1);
++  }
++#else
++  if (ClDecouple) {
++    dbgs() << "This is vanilla Asan, but you are running with -asan-decouple\n";
++    exit(1);
++  }
++#endif
++#ifdef ENABLE_INSTRUMENT_MODULE
+   initializeCallbacks(M);
+ 
+   // Create a module constructor. A destructor is created lazily because not all
+@@ -2519,6 +2736,7 @@
+     if (AsanDtorFunction)
+       appendToGlobalDtors(M, AsanDtorFunction, Priority);
+   }
++#endif // ENABLE_INSTRUMENT_MODULE
+ 
+   return true;
+ }
+@@ -2560,10 +2778,33 @@
+             M.getOrInsertFunction(
+                 ClMemoryAccessCallbackPrefix + ExpStr + Suffix + EndingStr,
+                 FunctionType::get(IRB.getVoidTy(), Args1, false));
++
++        // S3LAB
++#ifdef ASAN_DECOUPLE
++        // normal
++        CheckMsgOpcode[0][AccessSizeIndex] = CHECK_ACCESS_1 + AccessSizeIndex;
++        // Exp
++        CheckMsgOpcode[1][AccessSizeIndex] = CHECK_ACCESS_EXP_1 + AccessSizeIndex;
++#endif
+       }
+     }
+   }
+ 
++#ifdef ASAN_DECOUPLE
++# ifdef USE_PTWRITE
++  // S3LAB: Initialize inline assembly performing PTWRITE
++  PTWriteAsm = InlineAsm::get(FunctionType::get(IRB.getVoidTy(), { IRB.getInt64Ty() }, false),
++      StringRef("ptwrite $0"), StringRef("r"), true);
++  PTWriteAsm32 = InlineAsm::get(FunctionType::get(IRB.getVoidTy(), { IRB.getInt32Ty() }, false),
++      StringRef("ptwritel $0"), StringRef("r"), true);
++# else // !USE_PTWRITE
++  // S3LAB: Initialize pointers to STM port
++  Constant *PortAddr = ConstantInt::get(IRB.getInt64Ty(), kAsanStmPort64);
++  PortPtr = ConstantExpr::getIntToPtr(PortAddr, PointerType::getUnqual(IRB.getInt64Ty()));
++  PortPtr32 = ConstantExpr::getIntToPtr(PortAddr, PointerType::getUnqual(IRB.getInt32Ty()));
++#endif // USE_PTWRITE
++#endif
++
+   const std::string MemIntrinCallbackPrefix =
+       CompileKernel ? std::string("") : ClMemoryAccessCallbackPrefix;
+   AsanMemmove = M.getOrInsertFunction(MemIntrinCallbackPrefix + "memmove",
+@@ -2586,6 +2827,13 @@
+   if (Mapping.InGlobal)
+     AsanShadowGlobal = M.getOrInsertGlobal("__asan_shadow",
+                                            ArrayType::get(IRB.getInt8Ty(), 0));
++#ifdef ASAN_PERF_ANALYZE
++  AsanS3labStatsInstrumentedOperandsAddFunction =
++      M.getOrInsertFunction(kAsanS3labStatsInstrumentedOperandsAdd,
++        IRB.getVoidTy(), IntptrTy);
++#endif
++  // S3LAB
++  DASAN_DEBUG(AsanS3labMarkerFunction = M.getOrInsertFunction(kAsanS3labMarker, IRB.getVoidTy(), IntptrTy));
+ }
+ 
+ bool AddressSanitizer::maybeInsertAsanInitAtFunctionEntry(Function &F) {
+@@ -2678,6 +2926,7 @@
+ 
+   bool FunctionModified = false;
+ 
++#ifdef ENABLE_INSTRUMENT_FUNCTION // S3LAB
+   // If needed, insert __asan_init before checking for SanitizeAddress attr.
+   // This function needs to be called even if the function body is not
+   // instrumented.
+@@ -2687,8 +2936,6 @@
+   // Leave if the function doesn't need instrumentation.
+   if (!F.hasFnAttribute(Attribute::SanitizeAddress)) return FunctionModified;
+ 
+-  LLVM_DEBUG(dbgs() << "ASAN instrumenting:\n" << F << "\n");
+-
+   initializeCallbacks(*F.getParent());
+ 
+   FunctionStateRAII CleanupObj(this);
+@@ -2714,6 +2961,9 @@
+     AllBlocks.push_back(&BB);
+     TempsToInstrument.clear();
+     int NumInsnsPerBB = 0;
++#ifdef ASAN_PERF_ANALYZE
++    int LastNumInsnsPerBB = 0;
++#endif
+     for (auto &Inst : BB) {
+       if (LooksLikeCodeInBug11395(&Inst)) return false;
+       SmallVector<InterestingMemoryOperand, 1> InterestingOperands;
+@@ -2757,6 +3007,17 @@
+         if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+           maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
+       }
++
++      // S3LAB
++#ifdef ASAN_PERF_ANALYZE
++      if (NumInsnsPerBB > LastNumInsnsPerBB) {
++        IRBuilder<> IRB(&Inst);
++        IRB.CreateCall(AsanS3labStatsInstrumentedOperandsAddFunction,
++            {ConstantInt::get(IntptrTy, NumInsnsPerBB - LastNumInsnsPerBB)});
++        LastNumInsnsPerBB = NumInsnsPerBB;
++      }
++#endif // ASAN_PERF_ANALYZE
++
+       if (NumInsnsPerBB >= ClMaxInsnsToInstrumentPerBB) break;
+     }
+   }
+@@ -2764,6 +3025,7 @@
+   bool UseCalls = (ClInstrumentationWithCallsThreshold >= 0 &&
+                    OperandsToInstrument.size() + IntrinToInstrument.size() >
+                        (unsigned)ClInstrumentationWithCallsThreshold);
++
+   const DataLayout &DL = F.getParent()->getDataLayout();
+   ObjectSizeOpts ObjSizeOpts;
+   ObjSizeOpts.RoundToAlign = true;
+@@ -2772,17 +3034,20 @@
+   // Instrument.
+   int NumInstrumented = 0;
+   for (auto &Operand : OperandsToInstrument) {
+-    if (!suppressInstrumentationSiteForDebug(NumInstrumented))
++    unsigned opnum = 0;
++    if (!suppressInstrumentationSiteForDebug(NumInstrumented)) {
+       instrumentMop(ObjSizeVis, Operand, UseCalls,
+                     F.getParent()->getDataLayout());
++    }
+     FunctionModified = true;
++    opnum++;
+   }
+   for (auto Inst : IntrinToInstrument) {
+-    if (!suppressInstrumentationSiteForDebug(NumInstrumented))
++    if (!suppressInstrumentationSiteForDebug(NumInstrumented)) {
+       instrumentMemIntrinsic(Inst);
++    }
+     FunctionModified = true;
+   }
+-
+   FunctionStackPoisoner FSP(F, *this);
+   bool ChangedStack = FSP.runOnFunction();
+ 
+@@ -2800,10 +3065,7 @@
+ 
+   if (ChangedStack || !NoReturnCalls.empty())
+     FunctionModified = true;
+-
+-  LLVM_DEBUG(dbgs() << "ASAN done instrumenting: " << FunctionModified << " "
+-                    << F << "\n");
+-
++#endif // ENABLE_INSTRUMENT_FUNCTION
+   return FunctionModified;
+ }
+ 
+@@ -2843,11 +3105,25 @@
+     AsanSetShadowFunc[Val] =
+         M.getOrInsertFunction(Name.str(), IRB.getVoidTy(), IntptrTy, IntptrTy);
+   }
+-
+   AsanAllocaPoisonFunc = M.getOrInsertFunction(
+       kAsanAllocaPoison, IRB.getVoidTy(), IntptrTy, IntptrTy);
+   AsanAllocasUnpoisonFunc = M.getOrInsertFunction(
+       kAsanAllocasUnpoison, IRB.getVoidTy(), IntptrTy, IntptrTy);
++
++  // S3LAB
++#ifdef ASAN_DECOUPLE
++  AsanPoisonStackEntryFunc = M.getOrInsertFunction(kAsanPoisonStackEntry, 
++      llvm::FunctionType::get(IRB.getVoidTy(), { IntptrTy, IRB.getInt32Ty(),
++	      IRB.getInt32Ty() }, true)); // true is for variadic function
++  AsanPoisonStackEntryBytesFunc =
++    M.getOrInsertFunction(kAsanPoisonStackEntryBytes,
++      llvm::FunctionType::get(IRB.getVoidTy(), { IntptrTy, IRB.getInt32Ty(),
++        IRB.getInt32Ty() }, true)); // true is for variadic function
++  AsanUnpoisonStackMemoryFunc = M.getOrInsertFunction(
++      kAsanUnpoisonStackMemoryName, IRB.getVoidTy(), IntptrTy, IntptrTy);
++  AsanPoisonF8Func = M.getOrInsertFunction(kAsanPoisonF8, IRB.getVoidTy(), 
++      IntptrTy, IntptrTy);
++#endif
+ }
+ 
+ void FunctionStackPoisoner::copyToShadowInline(ArrayRef<uint8_t> ShadowMask,
+@@ -2867,6 +3143,7 @@
+   // trailing zeros in ShadowMask. Zeros never change, so they need neither
+   // poisoning nor up-poisoning. Still we don't mind if some of them get into a
+   // middle of a store.
++
+   for (size_t i = Begin; i < End;) {
+     if (!ShadowMask[i]) {
+       assert(!ShadowBytes[i]);
+@@ -2914,6 +3191,7 @@
+                                          size_t Begin, size_t End,
+                                          IRBuilder<> &IRB, Value *ShadowBase) {
+   assert(ShadowMask.size() == ShadowBytes.size());
++
+   size_t Done = Begin;
+   for (size_t i = Begin, j = Begin + 1; i < End; i = j++) {
+     if (!ShadowMask[i]) {
+@@ -2940,7 +3218,6 @@
+   copyToShadowInline(ShadowMask, ShadowBytes, Done, End, IRB, ShadowBase);
+ }
+ 
+-// Fake stack allocator (asan_fake_stack.h) has 11 size classes
+ // for every power of 2 from kMinStackMallocSize to kMaxAsanStackMallocSizeClass
+ static int StackMallocSizeClass(uint64_t LocalStackSize) {
+   assert(LocalStackSize <= kMaxStackMallocSize);
+@@ -3038,8 +3315,9 @@
+ 
+   // Handle dynamic allocas.
+   createDynamicAllocasInitStorage();
+-  for (auto &AI : DynamicAllocaVec)
++  for (auto &AI : DynamicAllocaVec) {
+     handleDynamicAllocaCall(AI);
++  }
+   unpoisonDynamicAllocas();
+ }
+ 
+@@ -3096,12 +3374,208 @@
+   }
+ }
+ 
++// S3LAB
++#ifdef DASAN
++static void PrintSB(const SmallVectorImpl<uint8_t> &SB, const char Name[])
++{
++  std::ostringstream pb;
++
++  dbgs() << "[+] " << Name << " bytes:\n[-] ";
++  for (unsigned int i = 0; i < SB.size(); i++) {
++    pb << std::setw(2) << std::setfill('0') << std::hex << (size_t)SB[i] << " ";
++  }
++  dbgs() << pb.str() << "\n";
++}
++#endif // DASAN
++
++
++#ifdef ASAN_DECOUPLE
++void FunctionStackPoisoner::MonitorPoisonStackEntryCall(Value *Address,
++    IRBuilder<> &IRB, size_t SBSize, size_t QWordsNum, const ArrayRef<uint64_t> QWords,
++    const FunctionCallee &FC)
++{
++  SmallVector<Value *, 8> Args;
++
++  Args.push_back(Address);
++  Args.push_back(ConstantInt::get(IRB.getInt32Ty(), SBSize));
++  Args.push_back(ConstantInt::get(IRB.getInt32Ty(), QWordsNum));
++
++  for (const auto &Q : QWords) {
++    Args.push_back(ConstantInt::get(IRB.getInt64Ty(), Q));
++  }
++
++  IRB.CreateCall(FC, Args);
++}
++
++void FunctionStackPoisoner::MonitorMessage96(Value *Address, IRBuilder<> &IRB,
++    uint8_t OpCode, uint8_t ExtraVal, size_t Size)
++{
++  assert(Size <= (uint32_t)-1);
++
++  /*
++  * prepare and send first 64bit packet
++  * | opcode(8) | val(8) | addr(48) |
++  */
++  // Prepare constant part of message
++  uint64_t data = (ExtraVal << 8) | OpCode;
++  // Shift address
++  Value *ShiftedAddr = IRB.CreateShl(Address, ConstantInt::get(IntptrTy, 16));
++  // Combine address with constant part
++  Value *Msg = IRB.CreateOr(ShiftedAddr, ConstantInt::get(IntptrTy, data));
++  // Write message
++  ASan.createMsgWrite(IRB, Msg);
++
++  /*
++  * prepare and send 32bit packet
++  * | size(32) |
++  */
++  // Write message
++  ASan.createMsgWrite(IRB, ConstantInt::get(IRB.getInt32Ty(), (uint32_t)Size));
++}
++
++void FunctionStackPoisoner::MonitorMessage89(Value *Address, IRBuilder<> &IRB,
++    uint8_t OpCode, uint8_t ExtraVal, size_t Size)
++{
++  assert(Size <= (uint32_t)-1);
++
++  /*
++  * prepare and send first 64bit packet
++  * | opcode(8) | val(8) | addr(48) |
++  */
++  // Prepare constant part of message
++  uint64_t data = (ExtraVal << 15) | OpCode;
++  // Shift address
++  Value *ShiftedAddr = IRB.CreateShl(Address, ConstantInt::get(IntptrTy, 16));
++  // Combine address with constant part
++  Value *Msg = IRB.CreateOr(ShiftedAddr, ConstantInt::get(IntptrTy, data));
++  // Write message
++  ASan.createMsgWrite(IRB, Msg);
++
++  /*
++  * prepare and send 32bit packet
++  * | size(32) |
++  */
++  // Write message
++  ASan.createMsgWrite(IRB, ConstantInt::get(IRB.getInt32Ty(), (uint32_t)Size));
++}
++
++
++void FunctionStackPoisoner::MonitorPoisonStackEntryInline(Value *Address, IRBuilder<> &IRB,
++    uint8_t OpCode, uint8_t ExtraVal, uint16_t SBSize, const ArrayRef<uint64_t> QWords)
++{
++  MonitorMessage96(Address, IRB, OpCode, ExtraVal, SBSize);
++
++  /* prepare and send variable part
++   */
++  for (const auto &Q : QWords) {
++    ASan.createMsgWrite(IRB, ConstantInt::get(IRB.getInt64Ty(), Q));
++  }
++}
++
++// Handles initial poisoning of the objects in stack that need protection.It
++// includes poisoned red zone with three
++// different bytes (left, mid, right), while objects are poisoned with
++// "after scope" poison bytes, if it is on, or 0 otherwise.
++// Other variables do not seem to be in the part of the stack frame that is
++// touched
++void FunctionStackPoisoner::MonitorPoisonStackEntry(Value *LocalStackBase, IRBuilder<> &IRB,
++    const SmallVectorImpl<ASanStackVariableDescription> &Vars,
++    const SmallVectorImpl<uint8_t> &SBAfter, bool UseCalls)
++{
++  assert(Vars.size() > 0);
++
++  DASAN_DEBUG(dbgs() << "[+] Poison on stack frame entry\n[-] # of vars: " << Vars.size() << '\n');
++  size_t DefaultSize = (Vars.size() + 2 ) * ASan.LongSize;
++  size_t BytesSize = SBAfter.size() * 8 + ASan.LongSize * 1.5;
++
++  DASAN_MARKER(IRB.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666000)}));
++
++  if (DefaultSize >= BytesSize) {
++    // Send the bytes
++    size_t QWords = SBAfter.size() / (ASan.LongSize / 8); 
++    size_t ExtraBytes = SBAfter.size() & ((ASan.LongSize / 8) - 1);
++
++    assert(SBAfter.size() < (250 * 8));
++    assert((QWords + (ExtraBytes != 0)) < 250);
++
++    size_t i, j;
++    const bool IsLittleEndian = F.getParent()->getDataLayout().isLittleEndian();
++
++    SmallVector<uint64_t> SBData;
++    uint64_t data;
++    std::ostringstream pb;
++    DASAN_DEBUG(dbgs() << "[+] QWords: ");
++    for (i = 0; i < QWords; i++) {
++      for (data = j = 0; j < ((size_t)ASan.LongSize / 8); j++) {
++        if (IsLittleEndian)
++          data |= (uint64_t)SBAfter[i * 8 + j] << (8 * j);
++        else
++          data = (data << 8) | SBAfter[i * 8 + j];
++      }
++      DASAN_DEBUG(pb << std::setw(2) << std::setfill('0') << std::hex << data << ' ');
++      SBData.push_back(data);
++    }
++
++    if (ExtraBytes) {
++      for (data = j = 0; j < ExtraBytes; j++) {
++        if (IsLittleEndian)
++          data |= (uint64_t)SBAfter[i * 8 + j] << (8 * j);
++        else
++          data = (data << 8) | SBAfter[i * 8 + j];
++      }
++      DASAN_DEBUG(pb << std::setw(2) << std::setfill('0') << std::hex << data);
++      SBData.push_back(data);
++    }
++    DASAN_DEBUG(dbgs() << pb.str() << '\n');
++
++    if (UseCalls) {
++      MonitorPoisonStackEntryCall(LocalStackBase, IRB, SBAfter.size(), SBData.size(),
++          SBData, AsanPoisonStackEntryBytesFunc);
++    } else {
++      MonitorPoisonStackEntryInline(LocalStackBase, IRB, POISON_STACK_ENTRY_BYTES,
++          SBData.size(), SBAfter.size(), SBData);
++    }
++  } else {
++    // Send the protected variables info as a vector
++    assert(Vars.size() < 250);
++    assert(SBAfter.size() <= 0xffff);
++    DASAN_DEBUG(dbgs() << "[-] Send vector " << SBAfter.size() << ", " << Vars.size() << "\n");
++
++    SmallVector<uint64_t> VarData;
++    uint64_t data;
++    uint64_t val;
++    for (const auto &Var : Vars) {
++      if (Var.LifetimeSize)
++      	val = 0x1;
++      else
++	val = 0x0;
++
++      DASAN_DEBUG(dbgs() << "[-] var offset " << Var.Offset << ", size " 
++	<< Var.Size << ", poison " << unsigned(val) << '\n');
++      data = val << 48 | (Var.Size & 0xffff) << 32 | (uint32_t)Var.Offset;
++      VarData.push_back(data);
++    }
++
++    if (UseCalls) {
++      MonitorPoisonStackEntryCall(LocalStackBase, IRB, SBAfter.size(), VarData.size(),
++          VarData, AsanPoisonStackEntryFunc);
++    } else {
++      MonitorPoisonStackEntryInline(LocalStackBase, IRB, POISON_STACK_ENTRY,
++          Vars.size(), SBAfter.size(), VarData);
++    }
++  }
++  DASAN_MARKER(IRB.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666001)}));
++}
++#endif // ASAN_DECOUPLE
++
++// S3LAB handle static alloca
+ void FunctionStackPoisoner::processStaticAllocas() {
+   if (AllocaVec.empty()) {
+     assert(StaticAllocaPoisonCallVec.empty());
+     return;
+   }
+-
++  // S3LAB
++  DASAN_DEBUG(dbgs() << "ASAN processStaticAllocas\n");
+   int StackMallocIdx = -1;
+   DebugLoc EntryDebugLocation;
+   if (auto SP = F.getSubprogram())
+@@ -3176,7 +3650,9 @@
+   }
+ 
+   auto DescriptionString = ComputeASanStackFrameDescription(SVD);
+-  LLVM_DEBUG(dbgs() << DescriptionString << " --- " << L.FrameSize << "\n");
++  DASAN_DEBUG(dbgs() << "[+] frame description: #vars [var_offset, var_size, name_size,"
++    "name] ... \n[-] " << DescriptionString << "\n[-] Frame size: " <<
++    L.FrameSize << "\n");
+   uint64_t LocalStackSize = L.FrameSize;
+   bool DoStackMalloc = ClUseAfterReturn && !ASan.CompileKernel &&
+                        LocalStackSize <= kMaxStackMallocSize;
+@@ -3198,7 +3674,10 @@
+   Value *LocalStackBaseAlloca;
+   uint8_t DIExprFlags = DIExpression::ApplyOffset;
+ 
++
+   if (DoStackMalloc) {
++    // S3LAB
++    DASAN_DEBUG(dbgs() << "[+] stack malloc\n");
+     LocalStackBaseAlloca =
+         IRB.CreateAlloca(IntptrTy, nullptr, "asan_local_stack_base");
+     // void *FakeStack = __asan_option_detect_stack_use_after_return
+@@ -3236,6 +3715,8 @@
+   } else {
+     // void *FakeStack = nullptr;
+     // void *LocalStackBase = alloca(LocalStackSize);
++    // S3LAB
++    DASAN_DEBUG(dbgs() << "[+] fake stack\n");
+     FakeStack = ConstantInt::get(IntptrTy, 0);
+     LocalStackBase =
+         DoDynamicAlloca ? createAllocaForLayout(IRB, L, true) : StaticAlloca;
+@@ -3262,7 +3743,7 @@
+         AI->getType());
+     AI->replaceAllUsesWith(NewAllocaPtr);
+   }
+-
++  
+   // The left-most redzone has enough space for at least 4 pointers.
+   // Write the Magic value to redzone[0].
+   Value *BasePlus0 = IRB.CreateIntToPtr(LocalStackBase, IntptrPtrTy);
+@@ -3275,41 +3756,94 @@
+       IntptrPtrTy);
+   GlobalVariable *StackDescriptionGlobal =
+       createPrivateGlobalForString(*F.getParent(), DescriptionString,
+-                                   /*AllowMerging*/ true, kAsanGenPrefix);
++                                   /*AllowMerging*/ true, kAsanGenPrefix);                                 
+   Value *Description = IRB.CreatePointerCast(StackDescriptionGlobal, IntptrTy);
+   IRB.CreateStore(Description, BasePlus1);
+   // Write the PC to redzone[2].
+   Value *BasePlus2 = IRB.CreateIntToPtr(
+-      IRB.CreateAdd(LocalStackBase,
++     IRB.CreateAdd(LocalStackBase,
+                     ConstantInt::get(IntptrTy, 2 * ASan.LongSize / 8)),
+       IntptrPtrTy);
+   IRB.CreateStore(IRB.CreatePointerCast(&F, IntptrTy), BasePlus2);
+ 
++  // S3LAB
++  // this is were poisoning starts. Initially, using ShadowAfterScope so
++  // redzones should be inaccessible and buffers are not yet in scope.
++
+   const auto &ShadowAfterScope = GetShadowBytesAfterScope(SVD, L);
+ 
++  DASAN_DEBUG(PrintSB(ShadowAfterScope, "ShadowAfterScope"));
++
++  // S3LAB
++#ifdef ENABLE_FSP_STATIC
++#ifdef ASAN_DECOUPLE 
++  // S3LAB TODO: Is there a threshold that makes a function call more efficient?
++  bool UseCalls = (ClInstrumentationWithCallsThreshold == 0);
++
++  // Check that the stack size is aligned to the shadow memory scale, because we
++  // use the optimized poisoning message on stack exit
++  assert((LocalStackSize & ((1 << Mapping.Scale) - 1)) == 0);
++
++  MonitorPoisonStackEntry(LocalStackBase, IRB, SVD, ShadowAfterScope, UseCalls);
++#else
+   // Poison the stack red zones at the entry.
+   Value *ShadowBase = ASan.memToShadow(LocalStackBase, IRB);
+   // As mask we must use most poisoned case: red zones and after scope.
+   // As bytes we can use either the same or just red zones only.
+   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase);
++#endif // ASAN_DECOUPLE
++#endif // ENABLE_FSP_STATIC
+ 
+   if (!StaticAllocaPoisonCallVec.empty()) {
++#if defined(DASAN) || !defined(ASAN_DECOUPLE) // S3LAB: Just to shut up the compiler
+     const auto &ShadowInScope = GetShadowBytes(SVD, L);
++#endif
+ 
++    DASAN_DEBUG(PrintSB(ShadowInScope, "ShadowInScope"));
++
+     // Poison static allocas near lifetime intrinsics.
+     for (const auto &APC : StaticAllocaPoisonCallVec) {
+       const ASanStackVariableDescription &Desc = *AllocaToSVDMap[APC.AI];
+       assert(Desc.Offset % L.Granularity == 0);
++
++      IRBuilder<> IRB(APC.InsBefore);
++
++      //DASAN_DEBUG(dbgs() << "[+] use-after-scope offset=" << Desc.Offset << " size=" << APC.Size << " poison=" << APC.DoPoison << "\n");
++
++#ifdef ENABLE_FSP_STATIC
++#ifdef ASAN_DECOUPLE
++      // While in scope the stack includes poisoned red zones with three
++      // different bytes (left, mid, right), while objects are NOT poisoned.
++      // Objects are poisond with a special byte when they are out-of-scope or after
++      // scope in Asan terms
++      // This loop inserts instrumentation to mark stack buffers as in scope at the
++      // apropriate instruction (lifetime start), and instrumentation to mark
++      // stack bufers out of scope when their lifetime ends. APC points to the
++      // instruction where the event occurs. Its field DoPoison determines if the
++      // a variable should be marked in or out of scope.
++      if (UseCalls)
++        IRB.CreateCall((APC.DoPoison)? AsanPoisonF8Func : AsanUnpoisonStackMemoryFunc,
++            { IRB.CreateAdd(LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset)),
++            ConstantInt::get(IntptrTy, APC.Size) });
++      else {
++        DASAN_MARKER(IRB.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666100)}));
++        Value *Address = IRB.CreateAdd(LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset));
++        MonitorPoisonAlignedStackMemory(Address, IRB, APC.Size, APC.DoPoison);
++        DASAN_MARKER(IRB.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666101)}));
++      }
++#else // ASAN_DECOUPLE
+       size_t Begin = Desc.Offset / L.Granularity;
+       size_t End = Begin + (APC.Size + L.Granularity - 1) / L.Granularity;
+ 
+-      IRBuilder<> IRB(APC.InsBefore);
+       copyToShadow(ShadowAfterScope,
+                    APC.DoPoison ? ShadowAfterScope : ShadowInScope, Begin, End,
+                    IRB, ShadowBase);
++#endif // !ASAN_DECOUPLE
++#endif // ENABLE_FSP_STATIC
+     }
+   }
+ 
++
+   SmallVector<uint8_t, 64> ShadowClean(ShadowAfterScope.size(), 0);
+   SmallVector<uint8_t, 64> ShadowAfterReturn;
+ 
+@@ -3325,7 +3859,6 @@
+       //     // In use-after-return mode, poison the whole stack frame.
+       //     if StackMallocIdx <= 4
+       //         // For small sizes inline the whole thing:
+-      //         memset(ShadowBase, kAsanStackAfterReturnMagic, ShadowSize);
+       //         **SavedFlagPtr(FakeStack) = 0
+       //     else
+       //         __asan_stack_free_N(FakeStack, LocalStackSize)
+@@ -3341,6 +3874,16 @@
+         int ClassSize = kMinStackMallocSize << StackMallocIdx;
+         ShadowAfterReturn.resize(ClassSize / L.Granularity,
+                                  kAsanStackUseAfterReturnMagic);
++
++        // S3LAB
++        DASAN_DEBUG(PrintSB(ShadowAfterReturn, "ShadowAfterReturn"));
++
++#ifdef ENABLE_FSP_STATIC
++#ifdef ASAN_DECOUPLE
++        DASAN_MARKER(IRBPoison.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666400)}));
++        MonitorPoisonWithValue(LocalStackBase, IRBPoison, LocalStackSize, 0xf5);
++        DASAN_MARKER(IRBPoison.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666401)}));
++#else // ASAN_DECOUPLE
+         copyToShadow(ShadowAfterReturn, ShadowAfterReturn, IRBPoison,
+                      ShadowBase);
+         Value *SavedFlagPtrPtr = IRBPoison.CreateAdd(
+@@ -3351,7 +3894,11 @@
+         IRBPoison.CreateStore(
+             Constant::getNullValue(IRBPoison.getInt8Ty()),
+             IRBPoison.CreateIntToPtr(SavedFlagPtr, IRBPoison.getInt8PtrTy()));
++#endif // !ASAN_DECOUPLE
++#endif // ENABLE_FSP_STATIC
+       } else {
++        DASAN_DEBUG(dbgs() << "[+] __asan_stack_free_* LocalStackSize: "<< LocalStackSize << "\n");
++
+         // For larger frames call __asan_stack_free_*.
+         IRBPoison.CreateCall(
+             AsanStackFreeFunc[StackMallocIdx],
+@@ -3359,9 +3906,26 @@
+       }
+ 
+       IRBuilder<> IRBElse(ElseTerm);
++
++#ifdef ENABLE_FSP_STATIC
++#ifdef ASAN_DECOUPLE
++      DASAN_MARKER(IRBElse.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666500)}));
++      MonitorPoisonWithValue(LocalStackBase, IRBElse, LocalStackSize, 0x00);
++      DASAN_MARKER(IRBElse.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666501)}));
++#else
+       copyToShadow(ShadowAfterScope, ShadowClean, IRBElse, ShadowBase);
++#endif // !ASAN_DECOUPLE
++#endif // ENABLE_FSP_STATIC
+     } else {
++#ifdef ENABLE_FSP_STATIC
++#ifdef ASAN_DECOUPLE
++      DASAN_MARKER(IRBRet.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666600)}));
++      MonitorPoisonWithValue(LocalStackBase, IRBRet, LocalStackSize, 0x00);
++      DASAN_MARKER(IRBRet.CreateCall(ASan.AsanS3labMarkerFunction, {ConstantInt::get(IntptrTy, 666601)}));
++#else
+       copyToShadow(ShadowAfterScope, ShadowClean, IRBRet, ShadowBase);
++#endif // ASAN_DECOUPLE
++#endif // ENABLE_FSP_STATIC
+     }
+   }
+ 
+@@ -3369,6 +3933,7 @@
+   for (auto AI : AllocaVec) AI->eraseFromParent();
+ }
+ 
++// S3LAB: handle poisoning of an alloca through a function call
+ void FunctionStackPoisoner::poisonAlloca(Value *V, uint64_t Size,
+                                          IRBuilder<> &IRB, bool DoPoison) {
+   // For now just insert the call to ASan runtime.
+@@ -3387,6 +3952,7 @@
+ //     variable may go in and out of scope several times, e.g. in loops).
+ // (3) if we poisoned at least one %alloca in a function,
+ //     unpoison the whole stack frame at function exit.
++// S3LAB: inserts a call to compiler-rt to handle poisoning
+ void FunctionStackPoisoner::handleDynamicAllocaCall(AllocaInst *AI) {
+   IRBuilder<> IRB(AI);
+ 
+Only in sidecar-llvm/llvm/lib/Transforms/Instrumentation: SideStack.cpp
+Only in sidecar-llvm/llvm/lib/Transforms/Instrumentation: SideStack.h
