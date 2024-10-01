@@ -12,22 +12,22 @@ This document summarizes the modifications made to LLVM 12.0.1 to support the Si
 
 # SideASan Modifications
 
-SideASan (SideCar Address Sanitizer) offloads memory error detection to hardware monitors instead of relying on software-maintained shadow memory. This modification involves changes to both LLVM and the ASan runtime.
+SideASan (SideCar Address Sanitizer) offloads memory error detection to monitors instead of relying on software-maintained shadow memory. This modification involves changes to both LLVM and the ASan runtime.
 
 ## Changed Files
 
 ### `compiler-rt/lib/asan/asan_mapping.h`
 
-- Updated the ASan memory mapping to integrate with the hardware monitor for decoupled memory error detection.
+- Updated the ASan memory mapping to integrate with the monitor for decoupled memory error detection.
 
 ### `compiler-rt/lib/asan/asan_poisoning.cpp` and `asan_poisoning.h`
 
-- Adjusted poisoning logic to interact with the hardware monitor instead of updating shadow memory directly.
-- Functions like `PoisonShadow`, `FastPoisonShadow`, and others now communicate with the hardware monitor.
+- Adjusted poisoning logic to interact with the monitor instead of updating shadow memory directly.
+- Functions like `PoisonShadow`, `FastPoisonShadow`, and others now communicate with the monitor.
 
 ### `compiler-rt/lib/asan/asan_report.cpp`
 
-- Updated error reporting to work with decoupled ASan, allowing the hardware monitor to handle or forward error reports.
+- Updated error reporting to work with decoupled ASan, allowing the monitor to handle or forward error reports.
 
 ### `compiler-rt/lib/asan/asan_rtl.cpp`
 
@@ -35,7 +35,7 @@ SideASan (SideCar Address Sanitizer) offloads memory error detection to hardware
 
 ### `compiler-rt/lib/asan/asan_shadow_setup.cpp`
 
-- Prevented shadow memory allocation as the hardware monitor replaces the need for software-maintained shadow memory.
+- Prevented shadow memory allocation as the monitor replaces the need for software-maintained shadow memory.
 
 ### `compiler-rt/lib/asan/asan_stats.cpp` and `asan_stats.h`
 
@@ -47,7 +47,7 @@ SideASan (SideCar Address Sanitizer) offloads memory error detection to hardware
 
 ### `llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp`
 
-- Modified the AddressSanitizer LLVM pass to send hardware messages for memory access checks instead of performing inline checks.
+- Modified the AddressSanitizer LLVM pass to send messages for memory access checks instead of performing inline checks.
 
 ### `compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp`
 
@@ -57,12 +57,12 @@ SideASan (SideCar Address Sanitizer) offloads memory error detection to hardware
 
 ### `compiler-rt/lib/asan/decouple_device.cpp` and `decouple_device.h`
 
-- Implements the interface for communicating with the hardware monitor, handling memory access messages and poisoning information.
+- Implements the interface for communicating with the monitor, handling memory access messages and poisoning information.
 
 ## Notes on Address Sanitizer Modifications
 
-- Poisoning/unpoisoning APIs: Functions responsible for managing shadow memory were adjusted to interact with the hardware monitor.
-- Memory access checks: Memory access verification is now handled by sending information to the hardware monitor, which performs the checks.
+- Poisoning/unpoisoning APIs: Functions responsible for managing shadow memory were adjusted to interact with the monitor.
+- Memory access checks: Memory access verification is now handled by sending information to the monitor, which performs the checks.
 - Shadow memory allocation: Initialization functions were modified to prevent allocating shadow memory.
 
 ## Testing Adjustments
@@ -73,17 +73,17 @@ SideASan (SideCar Address Sanitizer) offloads memory error detection to hardware
 
 # SideCFI Modifications
 
-SideCFI (SideCar Control Flow Integrity) performs CFI checks using a hardware monitor, enhancing security by offloading control flow verification to a separate entity.
+SideCFI (SideCar Control Flow Integrity) performs CFI checks using a monitor, enhancing security by offloading control flow verification to a separate entity.
 
 ## Changed Files
 
 ### `llvm/lib/Transforms/IPO/LowerTypeTests.cpp`
 
-- Adjusted to generate hardware messages for CFI checks instead of performing inline checks or creating jump tables.
+- Adjusted to generate messages for CFI checks instead of performing inline checks or creating jump tables.
 
 ### `llvm/lib/Transforms/IPO/CrossDSOCFI.cpp`
 
-- Modified to ensure compatibility with SideCFI by preventing redundant CFI checks when using the hardware monitor.
+- Modified to ensure compatibility with SideCFI by preventing redundant CFI checks when using the monitor.
 
 ## Clang Modifications
 
@@ -99,24 +99,24 @@ SideCFI (SideCar Control Flow Integrity) performs CFI checks using a hardware mo
 These changes allow Clang to:
 
 - Generate metadata and function attributes needed for SideCFI.
-- Disable the slow path, as CFI checks are performed by the hardware monitor.
+- Disable the slow path, as CFI checks are performed by the monitor.
 
 ## New Runtime
 
 ### `compiler-rt/lib/dcfi/`
 
-- A new runtime created to interface with the hardware monitor, handling initialization and communication for SideCFI.
+- A new runtime created to interface with the monitor, handling initialization and communication for SideCFI.
 
 ## Notes on SideCFI
 
-- CFI checks are decoupled from the main process and handled by the hardware monitor.
+- CFI checks are decoupled from the main process and handled by the monitor.
 - Integration with LLVM passes ensures that the necessary metadata is generated and communicated correctly for runtime enforcement.
 
 ---
 
 # SideStack Modifications
 
-SideStack (SideCar Stack Protection) provides a shadow call stack mechanism using a hardware monitor to protect return addresses, enhancing security against stack-based attacks.
+SideStack (SideCar Stack Protection) provides a shadow call stack mechanism using a monitor to protect return addresses, enhancing security against stack-based attacks.
 
 ## Changed Files
 
@@ -142,11 +142,11 @@ SideStack (SideCar Stack Protection) provides a shadow call stack mechanism usin
 
 ### `compiler-rt/lib/sidestack/`
 
-- A new runtime was created to handle initialization and communication with the hardware monitor for managing the side stack.
+- A new runtime was created to handle initialization and communication with the monitor for managing the side stack.
 
 ## Notes on SideStack
 
-- The ShadowCallStack pass instruments code to maintain a shadow call stack, storing return addresses securely using the hardware monitor.
+- The ShadowCallStack pass instruments code to maintain a shadow call stack, storing return addresses securely using the monitor.
 
 ---
 
@@ -154,19 +154,19 @@ SideStack (SideCar Stack Protection) provides a shadow call stack mechanism usin
 
 ## SideASan
 
-- Redirects memory error detection from shadow memory to a hardware monitor.
-- Modified poisoning/unpoisoning APIs and memory access checks to interact with the hardware monitor.
+- Redirects memory error detection from shadow memory to a monitor.
+- Modified poisoning/unpoisoning APIs and memory access checks to interact with the monitor.
 
 ## SideCFI
 
-- Offloads CFI checks to the hardware monitor.
-- Adjusted Clang and LLVM to generate hardware messages for control flow verification.
+- Offloads CFI checks to the monitor.
+- Adjusted Clang and LLVM to generate messages for control flow verification.
 
 ## SideStack
 
-- Implements a shadow call stack using a hardware monitor.
+- Implements a shadow call stack using a monitor.
 - Introduces new LLVM passes and a runtime to manage return address protection.
 
-All modifications aim to leverage hardware capabilities to offload traditionally software-enforced protections, enhancing security and potentially reducing overhead.
+All modifications aim to leverage capabilities to offload traditionally software-enforced protections, enhancing security and potentially reducing overhead.
 
 ---
