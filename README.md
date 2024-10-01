@@ -14,6 +14,9 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 ```bash
 .
 ├── README.md                    # Project overview and instructions
+├── docs                         # Documentation files
+│   ├── llvm-changes.diff        # Diff results between LLVM 12.0.1 and SideCar LLVM
+│   └── llvm-modifications.md    # Modifications to LLVM 12.0.1 for SideCar
 ├── sidecar-driver               # Kernel drivers for different architectures
 │   ├── aarch64                  # Drivers for AArch64 architecture
 │   └── x86-64                   # Drivers for x86-64 architecture
