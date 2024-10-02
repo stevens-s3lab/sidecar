@@ -16,6 +16,7 @@ all: $(PROGS)
 
 $(PROGS): %: %.o
 	$(CC) $(LDFLAGS) -o $@ $< 
+	../../tools/gen_tp.sh $@
 
 clean:
-	rm -f *.o *.typemap $(PROGS) 
+	rm -f *.o *.typemap *.tp $(PROGS) 
