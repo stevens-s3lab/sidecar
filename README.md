@@ -121,7 +121,7 @@ flags `-fsanitize=shadow-call-stack -fsanitize-sidestack`.
 ### SideASan
 
 To compile a file with SideASan enabled, use `install/llvm-sidecar/bin/clang` and pass the
-flags `-fsanitize=address -mllvm -asan-decouple`. To avoid trigger the Leak Sanitizer
+flags `-fsanitize=address -mllvm -asan-decouple`. To avoid triggering the Leak Sanitizer
 disable it by running `export ASAN_OPTIONS=detect_leaks=0`.
 
 ## Example
