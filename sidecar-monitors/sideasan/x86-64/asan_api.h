@@ -6,14 +6,14 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define ASAN_API_DEBUG 0
+#define ASAN_API_DEBUG 1
 
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
 
 #define SHADOW_SCALE 3
 #define SHADOW_GRANULARITY 8
-#define SHADOW_OFFSET 0x1000000000
+#define SHADOW_OFFSET 0x00007fff8000
 
 #define ASAN_PAGE_SIZE 4096
 
@@ -37,7 +37,7 @@
 #define kLowShadowEnd   MEM_TO_SHADOW(kLowMemEnd)
 
 /* high mem */
-#define kHighMemEnd	0xffffffffffff
+#define kHighMemEnd	0x7fffffffffff
 #define kHighMemBeg     (MEM_TO_SHADOW(kHighMemEnd) + 1)
 
 /* high shadow */
@@ -135,6 +135,7 @@ void asan_mmap_shadow (void)
 	}
 
 	/* mmap shadow gap */
+#if 0
 	mmap_region[1] = (char *)mmap((void *)kShadowGapBeg,
 			kShadowGapEnd - kShadowGapBeg,
 			PROT_NONE,
@@ -145,6 +146,7 @@ void asan_mmap_shadow (void)
 		printf("error: Shadow Gap mmap failed with %d\n", errno);
 		goto clean_shadow_high;
 	}
+#endif
 
 	/* mmap low shadow */
 	mmap_region[2] = (char *)mmap((void *)kLowShadowBeg,
@@ -628,7 +630,7 @@ static inline void __asan_fast_poison_shadow_partial_right_redzone(
 
 /* ============= ASan Decoupled API ================ */
 
-static inline void asan_api_csr(const uint32_t pkt[])
+static inline void asan_api_csr(const uint64_t pkt[])
 {
 	uint64_t addr;
 	uint64_t bad;
@@ -638,7 +640,7 @@ static inline void asan_api_csr(const uint32_t pkt[])
 	size = pkt[0] >> 8 & 0x3f;
 	fatal = pkt[0] >> 14 & 0x1;
 	is_write = pkt[0] >> 15 & 0x1;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
+	addr = pkt[0] >> 16;
 
 	/* fast check */
 	if (unlikely(__asan_address_is_poisoned(addr) ||
@@ -658,7 +660,7 @@ static inline void asan_api_csr(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_csre(const uint32_t pkt[])
+static inline void asan_api_csre(const uint64_t pkt[])
 {
 	uint64_t addr;
 	uint64_t bad;
@@ -669,8 +671,8 @@ static inline void asan_api_csre(const uint32_t pkt[])
 	size = pkt[0] >> 8 & 0x3f;
 	fatal = pkt[0] >> 14 & 0x1;
 	is_write = pkt[0] >> 15 & 0x1;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	exp = pkt[2];
+	addr = pkt[0] >> 16;
+	exp = pkt[1];
 
 	/* to be defined */
 	(void)exp;
@@ -694,7 +696,7 @@ static inline void asan_api_csre(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_clr(const uint32_t pkt[])
+static inline void asan_api_clr(const uint64_t pkt[])
 {
 	uint64_t addr;
 	uint8_t fatal, is_write;
@@ -704,8 +706,8 @@ static inline void asan_api_clr(const uint32_t pkt[])
 	/* parse arguments */
 	fatal = pkt[0] >> 14 & 0x1;
 	is_write = pkt[0] >> 15 & 0x1;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1];
 
 	/* check for negative size param */
 	if (addr > addr + size) {
@@ -727,7 +729,7 @@ static inline void asan_api_clr(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_clre(const uint32_t pkt[])
+static inline void asan_api_clre(const uint64_t pkt[])
 {
 	uint64_t addr;
 	uint8_t fatal, is_write;
@@ -736,11 +738,11 @@ static inline void asan_api_clre(const uint32_t pkt[])
 	uint64_t bad;
 
 	/* parse arguments */
-	fatal = pkt[0] >> 14 & 0x1;
-	is_write = pkt[0] >> 15 & 0x1;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
-	exp = pkt[3];
+	fatal = (pkt[0] >> 14) & 0x1;
+	is_write = (pkt[0] >> 15) & 0x1;
+	addr = (pkt[0] >> 16) & 0xFFFFFFFFFFFF;
+	size = pkt[1] & 0xFFFFFFFF;
+	exp = (pkt[1] >> 32) & 0xFFFFFFFF;
 
 	/* check for negative size param */
 	if (addr > addr + size) {
@@ -766,14 +768,14 @@ static inline void asan_api_clre(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_co(const uint32_t pkt[])
+static inline void asan_api_co(const uint64_t pkt[])
 {
 	uint64_t addr;
 	uint32_t size;
 
 	/* parse arguments */
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1] >> 16;
 
 	/* TODO: fix */
 	/* the check alone may not be enough */
@@ -792,7 +794,7 @@ static inline void asan_api_co(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_crc(const uint32_t pkt[])
+static inline void asan_api_crc(const uint64_t pkt[])
 {
 	uint64_t from;
 	uint64_t to, bad = 0;
@@ -801,9 +803,9 @@ static inline void asan_api_crc(const uint32_t pkt[])
 
 	/* parse arguments */
 	fatal = pkt[0] >> 15 & 0x1;
-	from = pkt[0] >> 16 | pkt[1] << 16;
-	to = pkt[2] >> 16 | pkt[3] << 16;
-	size = pkt[4];
+	from = pkt[0] >> 16;
+	to = pkt[1] >> 16;
+	size = pkt[2];
 
 	/* check source */
 	if (from > from + size) { 
@@ -845,7 +847,7 @@ static inline void __asan_ca_print(uint64_t addr,
 }
 
 #define CHECK_DEFINE(size) 						\
-static inline void asan_api_ca ## size(const uint32_t pkt[])  		\
+static inline void asan_api_ca ## size(const uint64_t pkt[])  		\
 {                                                       		\
 	uint8_t isWrite, fatal;						\
 	uint64_t addr;							\
@@ -853,7 +855,7 @@ static inline void asan_api_ca ## size(const uint32_t pkt[])  		\
 	/* parse arguments */						\
 	fatal = pkt[0] >> 14 & 0x1;					\
 	isWrite = pkt[0] >> 15 & 0x1;					\
-	addr = pkt[0] >> 16 | pkt[1] << 16;				\
+	addr = pkt[0] >> 16;						\
 									\
 	if (!__asan_addr_is_in_mem(addr) && 				\
 			!__asan_addr_is_in_shadow(addr))		\
@@ -879,7 +881,7 @@ static inline void asan_api_ca ## size(const uint32_t pkt[])  		\
 									\
 	__asan_ca_print(addr, fatal, isWrite, size, 0);			\
 }                                                       		\
-static inline void asan_api_cae ## size(const uint32_t pkt[]) 		\
+static inline void asan_api_cae ## size(const uint64_t pkt[]) 		\
 {                                                       		\
 	uint8_t isWrite, fatal;						\
 	uint32_t exp;							\
@@ -888,8 +890,8 @@ static inline void asan_api_cae ## size(const uint32_t pkt[]) 		\
 	/* parse arguments */						\
 	fatal = pkt[0] >> 14 & 0x1;					\
 	isWrite = pkt[0] >> 15 & 0x1;					\
-	addr = pkt[0] >> 16 | pkt[1] << 16;				\
-	exp = pkt[2];							\
+	addr = pkt[0] >> 16;						\
+	exp = pkt[1];							\
 									\
 	if (!__asan_addr_is_in_mem(addr) && 				\
 			!__asan_addr_is_in_shadow(addr))		\
@@ -922,12 +924,12 @@ CHECK_DEFINE(4)
 CHECK_DEFINE(8)
 CHECK_DEFINE(16)
 
-static inline void asan_api_ccac(const uint32_t pkt[])
+static inline void asan_api_ccac(const uint64_t pkt[])
 {
 	uint64_t addr;
 
 	/* parse arguments */
-	addr = pkt[0] >> 16 | pkt[1] << 16;
+	addr = pkt[0] >> 16;
 
 	uint64_t s = MEM_TO_SHADOW(addr);
 	unsigned char sval = *(unsigned char*)(s);
@@ -945,7 +947,7 @@ static inline void asan_api_ccac(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_al(const uint32_t pkt[])
+static inline void asan_api_al(const uint64_t pkt[])
 {
 	uint64_t alignment;
 	uint64_t allocated;
@@ -953,10 +955,10 @@ static inline void asan_api_al(const uint32_t pkt[])
 	uint32_t allocated_size;
 
 	/* parse arguments */
-	alignment = pkt[0] >> 16 | pkt[1] << 16;
-	allocated = pkt[2] >> 16 | pkt[3] << 16;
-	size = pkt[4];
-	allocated_size = pkt[5];
+	alignment = pkt[0] >> 16;
+	allocated = pkt[1] >> 16;
+	size = pkt[2] & 0xFFFFFFFF;
+	allocated_size = (pkt[2] >> 32) & 0xFFFFFFFF;
 
 	if (*(uint8_t *)MEM_TO_SHADOW((uint64_t) allocated) == 0) {
 		__asan_poison_shadow((uint64_t) allocated, 
@@ -996,7 +998,7 @@ static inline void asan_api_al(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_as(const uint32_t pkt[])
+static inline void asan_api_as(const uint64_t pkt[])
 {
 	uint64_t alignment = 0x8;
 	uint64_t allocated;
@@ -1004,9 +1006,9 @@ static inline void asan_api_as(const uint32_t pkt[])
 	uint32_t allocated_size;
 
 	/* parse arguments */
-	allocated = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
-	allocated_size = pkt[3];
+	allocated = pkt[0] >> 16;
+	size = pkt[1] & 0xFFFFFFFF;
+	allocated_size = (pkt[1] >> 32) & 0xFFFFFFFF; 
 
 	if (*(uint8_t *)MEM_TO_SHADOW((uint64_t) allocated) == 0) {
 		__asan_poison_shadow((uint64_t) allocated, 
@@ -1042,7 +1044,7 @@ static inline void asan_api_as(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_upwv(const uint32_t pkt[])
+static inline void asan_api_upwv(const uint64_t pkt[])
 {
 	uint8_t val;
 	uint64_t addr;
@@ -1054,8 +1056,8 @@ static inline void asan_api_upwv(const uint32_t pkt[])
 
 	/* parse arguments */
 	val = pkt[0] >> 8 & 0xff;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1];
 
 	/* this is not needed anymore */
 	(void)val;
@@ -1114,7 +1116,7 @@ static inline void asan_api_upwv(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_pwv(const uint32_t pkt[])
+static inline void asan_api_pwv(const uint64_t pkt[])
 {
 	uint8_t val;
 	uint64_t addr;
@@ -1122,8 +1124,8 @@ static inline void asan_api_pwv(const uint32_t pkt[])
 
 	/* parse arguments */
 	val = pkt[0] >> 8 & 0xff;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1];
 
 	__asan_poison_shadow(addr, size, val);
 
@@ -1159,7 +1161,7 @@ static inline void asan_api_pwv(const uint32_t pkt[])
 	}
 }
 
-static inline void asan_api_pprr(const uint32_t pkt[])
+static inline void asan_api_pprr(const uint64_t pkt[])
 {
 	uint8_t val;
 	uint64_t addr;
@@ -1168,9 +1170,9 @@ static inline void asan_api_pprr(const uint32_t pkt[])
 
 	/* parse arguments */
 	val = pkt[0] >> 8 & 0xff;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
-	rz_size = pkt[3];
+	addr = pkt[0] >> 16;
+	size = pkt[1] & 0xFFFFFFFF;
+	rz_size = (pkt[1] >> 32) & 0xFFFFFFFF;
 
 	CHECK(__asan_addr_is_aligned_by_granularity(addr));
 	CHECK(__asan_addr_is_in_mem(addr));
@@ -1186,7 +1188,7 @@ static inline void asan_api_pprr(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_pasm(const uint32_t pkt[])
+static inline void asan_api_pasm(const uint64_t pkt[])
 {
 	uint8_t poison;
 	uint64_t addr;
@@ -1194,8 +1196,8 @@ static inline void asan_api_pasm(const uint32_t pkt[])
 
 	/* parse arguments */
 	poison = pkt[0] >> 15 & 0x1;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1];
 
 	if (size == 0) return;
 
@@ -1234,7 +1236,7 @@ static inline void asan_api_pasm(const uint32_t pkt[])
 	}
 }
 
-static inline void asan_api_pior(const uint32_t pkt[])
+static inline void asan_api_pior(const uint64_t pkt[])
 {
 	uint8_t poison;
 	uint64_t addr;
@@ -1242,8 +1244,8 @@ static inline void asan_api_pior(const uint32_t pkt[])
 
 	/* parse arguments */
 	poison = pkt[0] >> 15 & 0x1;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1];
 
 	uint64_t end = addr + size;
 
@@ -1266,7 +1268,7 @@ static inline void asan_api_pior(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_sac(const uint32_t pkt[])
+static inline void asan_api_sac(const uint64_t pkt[])
 {
 	uint64_t beg;
 	uint64_t end;
@@ -1275,10 +1277,10 @@ static inline void asan_api_sac(const uint32_t pkt[])
 	uint64_t granularity = SHADOW_GRANULARITY;
 
 	/* parse arguments */
-	beg = pkt[0] >> 16 | pkt[1] << 16;
-	end = pkt[2] >> 16 | pkt[3] << 16;
-	old_mid = pkt[4] >> 16 | pkt[5] << 16;
-	new_mid = pkt[6] >> 16 | pkt[7] << 16;
+	beg = pkt[0] >> 16;
+	end = pkt[1] >> 16;
+	old_mid = pkt[2] >> 16;
+	new_mid = pkt[3] >> 16;
 
 	if (!(beg <= old_mid && beg <= new_mid && 
 				old_mid <= end && 
@@ -1329,7 +1331,7 @@ static inline void asan_api_sac(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_fu(const uint32_t pkt[])
+static inline void asan_api_fu(const uint64_t pkt[])
 {
 	uint64_t addr;
 	uint64_t beg;
@@ -1337,8 +1339,8 @@ static inline void asan_api_fu(const uint32_t pkt[])
 	uint32_t size;
 	
 	/* parse arguments */
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	size = pkt[2];
+	addr = pkt[0] >> 16;
+	size = pkt[1];
 
 	/* calculate shadow ranges */
 	beg = MEM_TO_SHADOW(addr);
@@ -1357,14 +1359,14 @@ static inline void asan_api_fu(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_cfip(const uint32_t pkt[])
+static inline void asan_api_cfip(const uint64_t pkt[])
 {
 	uint64_t a1;
 	uint64_t a2;
 
 	/* parse arguments */
-	a1 = pkt[0] >> 16 | pkt[1] << 16;
-	a2 = pkt[2] >> 16 | pkt[3] << 16;
+	a1 = pkt[0] >> 16;
+	a2 = pkt[1] >> 16;
 
 	if (__asan_is_invalid_pointer_pair(a1, a2)) {
 		printf("\n=================================================================\n");
@@ -1380,7 +1382,7 @@ static inline void asan_api_cfip(const uint32_t pkt[])
 #endif
 }
 
-static inline void asan_api_pse(const uint32_t pkt[], const int pkt_size)
+static inline void asan_api_pse(const uint64_t pkt[], const int pkt_size)
 {
 	uint64_t addr;
 	uint16_t sb_size;
@@ -1390,31 +1392,31 @@ static inline void asan_api_pse(const uint32_t pkt[], const int pkt_size)
 	uint8_t *shadow;
 
 	/* parse arguments */
-	addr = pkt[0] >> 16 | pkt[1] << 16;
-	sb_size = pkt[2] & 0xffff;
+	addr = pkt[0] >> 16;
+	sb_size = pkt[1] & 0xffff;
 	vars = pkt[0] >> 8 & 0xff;
 
 	/* calculate shadow address */
 	shadow = (uint8_t*)MEM_TO_SHADOW(addr);
 
 	/* create left redzone shadow bytes */
-	for (i = 0; i < pkt[3] / SHADOW_GRANULARITY; i++, index++) {
+	for (i = 0; i < sb_size / SHADOW_GRANULARITY; i++, index++) {
 		shadow[index] = kAsanStackLeftRedzoneMagic;
 	}
 
 	/* create mid redzones and var shadow bytes */
-	for (i = 3; i < pkt_size; i += 2) {
+	for (i = 2; i < pkt_size; i++) {
 		/* only if mid redzone is needed */
-		zone_size = pkt[i] / SHADOW_GRANULARITY;
+		zone_size = (pkt[i] & 0xFFFFFFFF) / SHADOW_GRANULARITY;
 		for (; index < zone_size; index++) {
 			shadow[index] = kAsanStackMidRedzoneMagic;
 		}
 
 		/* calculate rounded up var shadow byte size */
-		zone_size = index + (((pkt[i + 1] & 0xffff) + SHADOW_GRANULARITY - 1) / SHADOW_GRANULARITY);
+		zone_size = index + ((((pkt[i] >> 32) & 0xffff) + SHADOW_GRANULARITY - 1) / SHADOW_GRANULARITY);
 
 		/* var shadow bytes */
-		var_poison = pkt[i + 1] >> 16 & 0x1;
+		var_poison = (pkt[i] >> 48) & 0x1;
 		for (; index < zone_size; index++) {
 			shadow[index] = var_poison ? kAsanStackUseAfterScopeMagic : 0x0;
 		}
@@ -1431,16 +1433,16 @@ static inline void asan_api_pse(const uint32_t pkt[], const int pkt_size)
 	printf("API: Poison Stack Entry\n");
 	printf("\taddr: 0x%lx vars: 0x%x sb_size: 0x%x\n", 
 			addr, vars, sb_size); 
-	for (i = 3; i < pkt_size; i += 2) {
-		printf("\toffset_%d: 0x%x length_%d: 0x%x poison: 0x%x\n", 
-				i - 3, pkt[i], i - 3, 
-				pkt[i + 1] & 0xffff, 
-				pkt[i + 1] >> 16 & 0xff);
+	for (i = 2; i < pkt_size; i++) {
+		printf("\toffset_%d: 0x%lx length_%d: 0x%lx poison: 0x%lx\n", 
+				i - 2, pkt[i] & 0xFFFFFFFF, i - 2, 
+				(pkt[i] >> 32) & 0xffff, 
+				(pkt[i] >> 48) & 0x1);
 	}
 #endif
 }
 
-static inline void asan_api_pseb(const uint32_t pkt[], int index)
+static inline void asan_api_pseb(const uint64_t pkt[], int index)
 {
 	uint64_t addr;
 	uint8_t qwords;
@@ -1451,20 +1453,24 @@ static inline void asan_api_pseb(const uint32_t pkt[], int index)
 	/* parse arguments */
 	qwords = pkt[0] >> 8 & 0xff;
 	sb_size = pkt[2] & 0xffff;
-	addr = pkt[0] >> 16 | pkt[1] << 16;
+	addr = pkt[0] >> 16;
 
 	/* calculate shadow address */
 	shadow = (uint8_t *)MEM_TO_SHADOW(addr);
 
 	/* start at the first magic packet */
-	pkt_index = 3;
+	pkt_index = 2;
 
 	/* poison shadow bytes */
-	for (i = 0; i < sb_size; i += 4, pkt_index++) {
+	for (i = 0; i < sb_size; i += 8, pkt_index++) {
 		shadow[i] = pkt[pkt_index] & 0xff;
-		shadow[i + 1] = pkt[pkt_index] >> 8 & 0xff;
-		shadow[i + 2] = pkt[pkt_index] >> 16 & 0xff;
-		shadow[i + 3] = pkt[pkt_index] >> 24 & 0xff;
+		shadow[i + 1] = (pkt[pkt_index] >> 8) & 0xff;
+		shadow[i + 2] = (pkt[pkt_index] >> 16) & 0xff;
+		shadow[i + 3] = (pkt[pkt_index] >> 24) & 0xff;
+		shadow[i + 4] = (pkt[pkt_index] >> 32) & 0xff;
+		shadow[i + 5] = (pkt[pkt_index] >> 40) & 0xff;
+		shadow[i + 6] = (pkt[pkt_index] >> 48) & 0xff;
+		shadow[i + 7] = (pkt[pkt_index] >> 56) & 0xff;
 	}
 
 	(void)qwords;
@@ -1473,9 +1479,9 @@ static inline void asan_api_pseb(const uint32_t pkt[], int index)
 	printf("API: Poison Stack Entry Bytes\n");
 	printf("\taddr: 0x%lx magic_qwords: 0x%x sb_size: 0x%x\n", 
 			addr, qwords, sb_size);
-	for (i = 3; i < index; i++) {
-		printf("\tmagic_%d: 0x%x\n", 
-				i - 2, pkt[i]);
+	for (i = 2; i < index; i++) {
+		printf("\tmagic_%d: 0x%lx\n", 
+				i - 1, pkt[i]);
 	}
 #endif
 }

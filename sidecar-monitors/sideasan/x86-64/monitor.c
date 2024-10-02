@@ -238,21 +238,41 @@ pt_destroy(void)
 }
 
 void
-asan_opcode_parser(uint32_t pkt)
+asan_opcode_parser(uint64_t pkt)
 {
 	/* reset pkt index */
 	asdec.pkt_index = 0;
 
-	/* store first pkt */
-	asdec.pkt[asdec.pkt_index++] = pkt;
 
 	/* set L1 parser based on opcode */
 	asdec.parser_index = pkt & 0xff;
+
+	printf("OPCODE: %d\n", asdec.parser_index);
+
+	/* case that only a single file is used */
+	switch (asdec.parser_index) {
+		case 6:
+		case 7:
+		case 8:
+		case 9:
+		case 10:
+		case 16:
+			/* call api through L1 */
+			parser[asdec.parser_index](pkt);
+			break;
+		default:
+			/* store first pkt */
+			asdec.pkt[asdec.pkt_index++] = pkt;
+			break;
+	}
 }
 
 unsigned long long
 process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bool overflow, bool wrap, bool last_read)
 {
+	uint64_t ptw_value;
+	uint32_t ptw_value_32;
+
 	/* Current packet opcode byte */
 	unsigned char packet_opcode = 0x0;
 
@@ -313,11 +333,20 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 						/* Ext PTWRITE (0x12) */
 						/* NOTE: PTWRITE opcode REQUIRES masking (use 0x1F) */
 						if ((packet_opcode & pt_opm_ptw) == pt_ext_ptw){
-							uint32_t ptw_value = *(uint32_t*)(local_ptr + i + 1);
+							unsigned char payload_size = (packet_opcode >> 5) & 0x03;
+							printf("Payload size field: %d\n", payload_size);
 
-              parser[asdec.parser_index](ptw_value);
+							if (payload_size) {
+								ptw_value = *(uint64_t*)(local_ptr + i + 1);
+								i+=9;
+							} else {
+								ptw_value_32 = *(uint32_t*)(local_ptr + i + 1);
+								ptw_value = (uint64_t)ptw_value_32; 
+								i+=5;
+							}
 
-							i+=4;
+							parser[asdec.parser_index](ptw_value);
+
 
 							/* Handled overflow buffer - no need to go further */
 							if (overflow)
@@ -419,6 +448,10 @@ asan_init (void)
 
 	/* map shadown memory */
 	asan_mmap_shadow();
+
+	/* init parser */
+	asdec.parser_index = OPCODE_PARSER;
+	asdec.pkt_index = 0;
 }
 
 int
@@ -434,10 +467,10 @@ main(int argc, char *argv[])
 	/* initialize for trace capturing */
 	pt_init();
 
-  /* initialize ASAN */
-  asan_init();
+	/* initialize ASAN */
+  	asan_init();
 
-	/* extract trace data from etr */
+	/* extract trace data from topa */
 	read_topa();
 
 	/* cleanup trace capturing */
