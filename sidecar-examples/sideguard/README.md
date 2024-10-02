@@ -14,9 +14,11 @@ sudo insmod ../../sidecar-driver/x86-64/ptw.ko
 
 ## Execution
 
+- To avoid context switches that could cause packet loss pin the process to a specific core (e.g. taskset -c 0)
+
 - To trigger a violation, run:
 ```bash
-./main 1
+taskset -c 0 ./main 1
 ```
 
 This will cause a violation at the monitor with a message like:

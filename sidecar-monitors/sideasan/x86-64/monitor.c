@@ -247,8 +247,6 @@ asan_opcode_parser(uint64_t pkt)
 	/* set L1 parser based on opcode */
 	asdec.parser_index = pkt & 0xff;
 
-	printf("OPCODE: %d\n", asdec.parser_index);
-
 	/* case that only a single file is used */
 	switch (asdec.parser_index) {
 		case 6:
@@ -334,8 +332,6 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 						/* NOTE: PTWRITE opcode REQUIRES masking (use 0x1F) */
 						if ((packet_opcode & pt_opm_ptw) == pt_ext_ptw){
 							unsigned char payload_size = (packet_opcode >> 5) & 0x03;
-							printf("Payload size field: %d\n", payload_size);
-
 							if (payload_size) {
 								ptw_value = *(uint64_t*)(local_ptr + i + 1);
 								i+=9;

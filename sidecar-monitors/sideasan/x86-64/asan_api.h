@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define ASAN_API_DEBUG 1
+#define ASAN_API_DEBUG 0
 
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
@@ -26,7 +26,7 @@
 # define FIRST_32_SECOND_64(a, b) (a)
 #endif
 
-#define MEM_TO_SHADOW(mem) (((mem) >> SHADOW_SCALE) + (SHADOW_OFFSET))
+#define MEM_TO_SHADOW(mem) (((uint64_t)(mem) >> SHADOW_SCALE) + (SHADOW_OFFSET))
 
 /* low mem */
 #define kLowMemBeg      0
@@ -105,15 +105,15 @@ const int kAsanShadowGap = 0xcc;
 void asan_print_mem_layout (void)
 {
 #if ASAN_API_DEBUG
-	printf("kHighMemEnd %lx\n", kHighMemEnd);
-	printf("kHighMemBeg %lx\n", kHighMemBeg);
-	printf("kHighShadowEnd %lx\n", kHighShadowEnd);
-	printf("kHigShadowBeg %lx\n", kHighShadowBeg);
-	printf("kShadowGapEnd %lx\n", kShadowGapEnd);
-	printf("kShadowGapBeg %lx\n", kShadowGapBeg);
-	printf("kLowShadowEnd %lx\n", kLowShadowEnd); 
-	printf("kLowShadowBeg %lx\n", kLowShadowBeg); 
-	printf("kLowMemEnd %lx\n", kLowMemEnd); 
+	printf("kHighMemEnd %lx\n", (unsigned long)kHighMemEnd);
+	printf("kHighMemBeg %lx\n", (unsigned long)kHighMemBeg);
+	printf("kHighShadowEnd %lx\n", (unsigned long)kHighShadowEnd);
+	printf("kHigShadowBeg %lx\n", (unsigned long)kHighShadowBeg);
+	printf("kShadowGapEnd %lx\n", (unsigned long)kShadowGapEnd);
+	printf("kShadowGapBeg %lx\n", (unsigned long)kShadowGapBeg);
+	printf("kLowShadowEnd %lx\n", (unsigned long)kLowShadowEnd); 
+	printf("kLowShadowBeg %lx\n", (unsigned long)kLowShadowBeg); 
+	printf("kLowMemEnd %lx\n", (unsigned long)kLowMemEnd); 
 	printf("kLowMemBeg %x\n", kLowMemBeg); 
 #endif
 }
@@ -135,7 +135,6 @@ void asan_mmap_shadow (void)
 	}
 
 	/* mmap shadow gap */
-#if 0
 	mmap_region[1] = (char *)mmap((void *)kShadowGapBeg,
 			kShadowGapEnd - kShadowGapBeg,
 			PROT_NONE,
@@ -146,7 +145,6 @@ void asan_mmap_shadow (void)
 		printf("error: Shadow Gap mmap failed with %d\n", errno);
 		goto clean_shadow_high;
 	}
-#endif
 
 	/* mmap low shadow */
 	mmap_region[2] = (char *)mmap((void *)kLowShadowBeg,
@@ -601,7 +599,7 @@ static inline void __asan_poison_shadow(uint64_t addr,
 		uint64_t size, uint8_t value) {
 	CHECK(__asan_addr_is_aligned_by_granularity(addr));
 	CHECK(__asan_addr_is_in_mem(addr));
-	CHECK(__asan_addr_is_aligned_by_granularity(addr + size));
+	//CHECK(__asan_addr_is_aligned_by_granularity(addr + size));
 	CHECK(__asan_addr_is_in_mem(addr + size - SHADOW_GRANULARITY));
 	__asan_fast_poison_shadow(addr, size, value);
 }

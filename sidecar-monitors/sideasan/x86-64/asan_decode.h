@@ -227,8 +227,6 @@ void asan_pse_l1(uint64_t pkt)
 	/* calculate total packets */
 	asdec.total_pkt = (asdec.pkt[0] >> 8 & 0xff) + 2;
 
-	printf("PSE TOTAL PKTS: %d\n", asdec.total_pkt);
-
 	/* pass to next level */
 	asdec.parser_index = PSE_LN; 
 }
