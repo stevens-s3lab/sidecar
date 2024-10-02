@@ -23,6 +23,7 @@ and a modified version of the LLVM 12.0.1 compiler to generate SideCar-compatibl
 ├── sidecar-examples             # Example implementations using SideCar
 │   ├── sideasan                 # Example with SideASan enabled
 │   ├── sidecfi                  # Example with SideCFI enabled
+│   ├── sideguard                # Example with SideGuard enabled
 │   └── sidestack                # Example with SideStack enabled
 ├── sidecar-llvm                 # Modified LLVM source and related tools
 ├── sidecar-monitors             # Monitors for SideCar components
