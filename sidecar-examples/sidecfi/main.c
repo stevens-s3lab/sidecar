@@ -9,7 +9,7 @@ void different_signature(int);
 typedef void (*func_ptr)(void);
 
 // Main function
-int main(void) {
+int main(int argc, char **argv) {
     // Valid function pointers
     func_ptr ptr1 = foo;
     func_ptr ptr2 = bar;
@@ -17,12 +17,21 @@ int main(void) {
     // Invalid function pointer (should trigger CFI violation)
     func_ptr invalid_ptr = (func_ptr)different_signature;
 
-    // Call functions through function pointers
+    // Call first legal func
     ptr1();
-    ptr2();
 
-    // This line should trigger a CFI violation
-    invalid_ptr();
+    if (argc != 2) {
+	    printf("Usage: %s <1 or 2>\n", argv[0]);
+	    return 1;
+    }
+
+    if (atoi(argv[1]) == 1) {
+    	// This line should trigger a CFI violation
+    	invalid_ptr();
+    } else if (atoi(argv[1]) == 1) {
+	// This shoud not trigger a CFI violation
+    	ptr2();
+    }
 
     return 0;
 }
