@@ -109,7 +109,7 @@ To compile a file with SideCFI enabled, use `install/llvm-sidecar/bin/clang` and
 flags `-flto -fsanitize=cfi-icall,cfi-vcall -fsanitize-cfi-cross-dso`
 and `-fsanitize-cfi-decouple` for decoupling all CFI checks or `-fsanitize-cfi-slowpath-decouple`
 for decoupling the slow path checks only. Currently the SideCFI monitor requires
-a typemap file containing metadata about the compiled binary's symbols which can be 
+a typemap file containing metadata about the compiled binary's symbols which can be
 produced by executing the script `./sidecar/tools/gen_tp.sh <binary>`.
 
 ### SideStack
@@ -120,7 +120,8 @@ flags `-fsanitize=shadow-call-stack -fsanitize-sidestack`.
 ### SideASan
 
 To compile a file with SideASan enabled, use `install/llvm-sidecar/bin/clang` and pass the
-flags `-fsanitize=address -mllvm -asan-decouple`.
+flags `-fsanitize=address -mllvm -asan-decouple`. To avoid trigger the Leak Sanitizer
+disable it by running `export ASAN_OPTIONS=detect_leaks=0`.
 
 ## Example
 
