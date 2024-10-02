@@ -109,7 +109,7 @@ To compile a file with SideCFI enabled, use `install/llvm-sidecar/bin/clang` and
 flags `-flto -fsanitize=cfi-icall,cfi-vcall -fsanitize-cfi-cross-dso`
 and `-fsanitize-cfi-decouple` for decoupling all CFI checks or `-fsanitize-cfi-slowpath-decouple`
 for decoupling the slow path checks only. Currently the SideCFI monitor requires
-a typemap file containing metadata about the combiled binary's symbols which can be 
+a typemap file containing metadata about the compiled binary's symbols which can be 
 produced by executing the script `./sidecar/tools/gen_tp.sh <binary>`.
 
 ### SideStack
