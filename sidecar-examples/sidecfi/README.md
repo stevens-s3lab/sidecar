@@ -29,5 +29,5 @@ MSG{0x56402793eef0, 6386}
 
 - To run without triggering a violation, run:
 ```bash
-./main 2
+taskset -c 0 ./main 2
 ```

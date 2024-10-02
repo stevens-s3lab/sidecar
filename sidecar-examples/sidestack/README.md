@@ -28,5 +28,5 @@ This will cause a violation at the monitor with a message like:
 
 - To run without triggering a violation, run:
 ```bash
-./main 2
+taskset -c 0 ./main 2
 ```
