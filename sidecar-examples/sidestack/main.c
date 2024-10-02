@@ -1,29 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <asm/prctl.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <syscall.h>
 
-#define arch_prctl(code, addr) syscall(SYS_arch_prctl, (code), (addr))
-
-// Function that will be tampered with
+// Function that will be called and where we will tamper the return address
 __attribute__((noinline))
-void test_function() {
-    printf("Inside test_function\n");
+void target_function() {
+    printf("Inside target_function, should return normally.\n");
 }
 
-// Function to tamper with return address
+// Function to tamper with the return address of target_function
 void tamper_return_address() {
-    // Access the current frame pointer (x86_64 specific)
+    // Get the current frame pointer (x86_64 specific)
     void **frame_pointer;
     asm volatile ("movq %%rbp, %0" : "=r"(frame_pointer));
 
-    // Overwrite the return address (which is right above the frame pointer)
+    // Overwrite the return address (the value right above the frame pointer)
     void **return_address = frame_pointer + 1;
+
+    // Set the return address to some invalid location (NULL in this case)
     printf("Tampering return address from %p to NULL\n", *return_address);
-    *return_address = NULL; // Set it to an invalid address to trigger a violation
+    *return_address = (void*)0xdeadbeef; // Jump to an invalid address
 }
 
 __attribute__((no_sanitize("shadow-call-stack"))) // Disable shadow call stack for main
@@ -34,13 +29,13 @@ int main(int argc, char **argv) {
     }
 
     if (atoi(argv[1]) == 1) {
-        printf("Triggering shadow call stack violation...\n");
-        tamper_return_address(); // Tamper with the return address
+        printf("Triggering shadow call stack violation by tampering return address.\n");
+        tamper_return_address(); // Modify return address to invalid location
     } else {
         printf("Running normally, no violation.\n");
     }
 
-    test_function(); // Call the function (return address will be tampered with in case 1)
+    target_function(); // This should trigger the violation if return address is tampered
 
     return 0;
 }
