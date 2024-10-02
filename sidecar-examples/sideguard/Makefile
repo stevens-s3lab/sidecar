@@ -1,0 +1,22 @@
+CFLAGS+=-fvisibility=hidden -flto -fsanitize=cfi-icall -fsanitize-cfi-cross-dso -fsanitize-cfi-decouple
+LDFLAGS+=-fsanitize=cfi-icall -flto -fvisibility=hidden -fsanitize-cfi-cross-dso -fsanitize-cfi-decouple
+
+CC=../../install/llvm-sidecar/bin/clang
+
+CFLAGS+=-O1 -Wall
+
+.PHONY: all clean
+
+PROGS=main
+
+all: $(PROGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $<
+
+$(PROGS): %: %.o
+	$(CC) $(LDFLAGS) -o $@ $< 
+	../../tools/gen_tp.sh $@
+
+clean:
+	rm -f *.o *.typemap *.tp $(PROGS) 
