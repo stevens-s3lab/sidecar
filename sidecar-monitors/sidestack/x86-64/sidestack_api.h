@@ -100,9 +100,9 @@ void sidestack_pop(uint32_t addr) {
         }
         if(unwind != 1){
             printf("-----------Violation-------------\n");
-            printf("SideStack Addr       : %x\n", compare_addr);
-            printf("Incoming Packet Addr : %x\n", addr);
-            printf("---------No Match Found-------------\n\n");
+            //printf("SideStack Addr       : %x\n", compare_addr);
+            //printf("Incoming Packet Addr : %x\n", addr);
+            //printf("---------No Match Found-------------\n\n");
         }
 #endif
     }

@@ -406,8 +406,6 @@ process_trace_data(char* buf, unsigned long buf_ofst, unsigned long read_tgt, bo
 int
 main(int argc, char *argv[])
 {
-	int enforce = 0;
-
 	struct sigaction sig;
 	sig.sa_sigaction = signal_handler;
 	sig.sa_flags = SA_SIGINFO;
@@ -418,13 +416,6 @@ main(int argc, char *argv[])
 
 	/* set up signal handler */
 	sigaction(SIGUSR1, &sig, NULL);
-
-	if(enforce){
-		printf("Enforcement : Enabled\n");
-	}
-	else{
-		printf("Enforcement : Disabled/Permissive \n");
-	}
 
 	/* initialize sidestack */
 	sidestack_init();
