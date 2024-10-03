@@ -3,29 +3,34 @@
 ## Setup
 
 1. Install the driver:
+
 ```bash
 sudo insmod ../../sidecar-driver/x86-64/ptw.ko
 ```
 
 2. Start the monitor:
+
 ```bash
 ../../sidecar-monitors/sideasan/x86-64/monitor
 ```
 
 ## Execution
 
-- To avoid context switches that could cause packet loss pin the process to a specific core (e.g. taskset -c 0)
+- To avoid having the process switch between cores that could cause packet loss, pin the process to a specific core (e.g. taskset -c 0)
 - The Leak Sanitizer needs to be disabled to avoid being triggered:
+
 ```bash
 export ASAN_OPTIONS=detect_leaks=0
 ```
 
 - To trigger an overflow run the test program with an input string of 31 chars or longer:
+
 ```bash
 taskset -c 0 ./so aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ```
 
 This will cause a violation at the monitor with a message indicating the overflow and a representation of the shadow memory like below:
+
 ```
 ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffe0426b060
 WRITE of size 1 at 0x7ffe0426b060 thread T0
@@ -43,7 +48,7 @@ Shadow bytes around the buggy address:
   0x100040845650: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 Shadow byte legend (one shadow byte represents 8 application bytes):
   Addressable:           00
-  Partially addressable: 01 02 03 04 05 06 07 
+  Partially addressable: 01 02 03 04 05 06 07
   Heap left redzone:       fa
   Freed heap region:       fd
   Stack left redzone:      f1
@@ -65,6 +70,7 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
 ```
 
 - To run without triggering a violation, run with a string input of less than 31 chars:
+
 ```bash
 taskset -c 0 ./so aaaaaaaaaaaaaa
 ```
