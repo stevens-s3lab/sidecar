@@ -1,9 +1,9 @@
 // Test max_redzone runtime option.
 
-// RUN: %clangxx_asan -O0 %s -o %t && %env_asan_opts=max_redzone=32 %run taskset -c 0 %t 0 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %clangxx_asan -O0 %s -o %t && %run taskset -c 0 %t 1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %clangxx_asan -O3 %s -o %t && %env_asan_opts=max_redzone=32 %run taskset -c 0 %t 0 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %clangxx_asan -O3 %s -o %t && %run taskset -c 0 %t 1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %clangxx_asan -O0 %s -o %t && %env_asan_opts=max_redzone=32 %run taskset -c 0 %t 0 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %clangxx_asan -O0 %s -o %t && %run taskset -c 0 %t 1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %clangxx_asan -O3 %s -o %t && %env_asan_opts=max_redzone=32 %run taskset -c 0 %t 0 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %clangxx_asan -O3 %s -o %t && %run taskset -c 0 %t 1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -2,7 +2,7 @@
 // interface.
 // RUN: %clang_asan %s -Wl,--gc-sections -ldl -o %t
 // RUN: %clang_asan %s -DBUILD_SO -fPIC -o %t-so.so -shared
-// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %run %t 2>&1
+// RUN: SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %run %t 2>&1
 
 // REQUIRES: asan-64-bits
 

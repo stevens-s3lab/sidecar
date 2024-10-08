@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -fexceptions -O %s -o %t && %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %clangxx_asan -fexceptions -O %s -o %t && %run taskset -c 0 %t & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 //
 // Test __sanitizer_annotate_contiguous_container.
 

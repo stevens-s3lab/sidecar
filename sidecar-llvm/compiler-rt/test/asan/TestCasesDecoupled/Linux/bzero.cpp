@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O0 %s -o %t && not %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && not %run taskset -c 0 %t & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 
 // REQUIRES: !android
 

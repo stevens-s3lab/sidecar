@@ -1,14 +1,14 @@
 // Test strict_string_checks option in atoll function
 // RUN: %clang_asan %s -o %t
-// RUN: %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1
-// RUN: %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2
-// RUN: %run taskset -c 0 %t test3 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test3 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test3 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK3
+// RUN: %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1
+// RUN: %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2
+// RUN: %run taskset -c 0 %t test3 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test3 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test3 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK3
 
 // FIXME: Needs Windows interceptor.
 // XFAIL: windows-msvc

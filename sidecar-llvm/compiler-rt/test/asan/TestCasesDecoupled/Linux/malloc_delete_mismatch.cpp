@@ -4,7 +4,7 @@
 // RUN: %clangxx_asan -g %s -o %t 2>&1
 
 // Find error and provide malloc context.
-// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=alloc_dealloc_mismatch=1 not %run %t 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=ALLOC-STACK
+// RUN: SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=alloc_dealloc_mismatch=1 not %run %t 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=ALLOC-STACK
 
 // REQUIRES: stable-runtime
 #include <stdlib.h>

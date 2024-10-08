@@ -2,9 +2,9 @@
 // REQUIRES: leak-detection
 //
 // RUN: %clangxx_asan  %s -o %t
-// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=detect_leaks=1 not %run taskset -c 0 %t  2>&1 | FileCheck %s
-// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & not %run taskset -c 0 %t  2>&1 | FileCheck %s
-// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=detect_leaks=0     %run taskset -c 0 %t
+// RUN: SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=detect_leaks=1 not %run taskset -c 0 %t  2>&1 | FileCheck %s
+// RUN: SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor & not %run taskset -c 0 %t  2>&1 | FileCheck %s
+// RUN: SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=detect_leaks=0     %run taskset -c 0 %t
 #include <stdio.h>
 int *t;
 

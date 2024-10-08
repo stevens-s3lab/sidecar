@@ -1,11 +1,11 @@
 // Test strict_string_checks option in strcat function
 // RUN: %clang_asan %s -o %t
-// RUN: not %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1-NONSTRICT --check-prefix=CHECK1
-// RUN: %env_asan_opts=strict_string_checks=false not  %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1-NONSTRICT --check-prefix=CHECK1
-// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1-STRICT --check-prefix=CHECK1
-// RUN: not %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2-NONSTRICT --check-prefix=CHECK2
-// RUN: %env_asan_opts=strict_string_checks=false not  %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2-NONSTRICT --check-prefix=CHECK2
-// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2-STRICT --check-prefix=CHECK2
+// RUN: not %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1-NONSTRICT --check-prefix=CHECK1
+// RUN: %env_asan_opts=strict_string_checks=false not  %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1-NONSTRICT --check-prefix=CHECK1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test1 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1-STRICT --check-prefix=CHECK1
+// RUN: not %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2-NONSTRICT --check-prefix=CHECK2
+// RUN: %env_asan_opts=strict_string_checks=false not  %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2-NONSTRICT --check-prefix=CHECK2
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test2 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2-STRICT --check-prefix=CHECK2
 
 #include <assert.h>
 #include <stdlib.h>

@@ -8,7 +8,7 @@
 // RUN: %clangxx -DBUILD_UNINSTRUMENTED_DSO=1 -fPIC -shared %s -o %dynamiclib2
 // RUN: %clangxx %s -c -mllvm -asan-use-private-alias -o %t.o
 // RUN: %clangxx_asan %t.o %ld_flags_rpath_exe2 %ld_flags_rpath_exe1 -o %t-EXE
-// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %run taskset -c 0 %t-EXE
+// RUN: SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %run taskset -c 0 %t-EXE
 
 #if defined (BUILD_INSTRUMENTED_DSO)
 long h = 15;

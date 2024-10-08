@@ -1,6 +1,6 @@
 // RUN: %clangxx_asan -O0 -fsanitize-address-field-padding=1  %s -o %t
-// RUN: not %run taskset -c 0 %t 11 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
-// RUN: %run taskset -c 0 %t 10 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: not %run taskset -c 0 %t 11 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: %run taskset -c 0 %t 10 & SIDECAR_BASE/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 //
 // FIXME: fix 32-bits.
 // REQUIRES: asan-64-bits, shadow-scale-3
