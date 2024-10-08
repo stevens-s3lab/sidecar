@@ -5,7 +5,7 @@
 //
 // RUN: %clangxx_asan -fsanitize-coverage=func,trace-pc-guard %s -o %t
 //
-// RUN: %env_asan_opts=coverage_direct=0:coverage_dir='"%t-dir"':verbosity=1 %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %env_asan_opts=coverage_direct=0:coverage_dir='"%t-dir"':verbosity=1 %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 // RUN: not %sancov print %t-dir/*.sancov 2>&1
 //
 // UNSUPPORTED: android

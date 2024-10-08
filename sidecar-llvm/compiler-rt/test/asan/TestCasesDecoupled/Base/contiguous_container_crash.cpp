@@ -1,8 +1,8 @@
 // RUN: %clangxx_asan -O %s -o %t
-// RUN: not %run taskset -c 0 %t crash & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-CRASH %s
-// RUN: not %run taskset -c 0 %t bad-bounds & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-BAD-BOUNDS %s
-// RUN: not %run taskset -c 0 %t bad-alignment & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-BAD-ALIGNMENT %s
-// RUN: %env_asan_opts=detect_container_overflow=0 %run taskset -c 0 %t crash & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: not %run taskset -c 0 %t crash & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-CRASH %s
+// RUN: not %run taskset -c 0 %t bad-bounds & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-BAD-BOUNDS %s
+// RUN: not %run taskset -c 0 %t bad-alignment & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-BAD-ALIGNMENT %s
+// RUN: %env_asan_opts=detect_container_overflow=0 %run taskset -c 0 %t crash & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 //
 // Test crash due to __sanitizer_annotate_contiguous_container.
 

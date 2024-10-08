@@ -1,6 +1,6 @@
 // RUN: %clangxx -DFUNC=zzzz %s -shared -o %dynamiclib -fPIC
 // RUN: %clangxx_asan -DFUNC=main %s -o %t %ld_flags_rpath_exe
-// RUN: %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 
 // GNU driver doesn't handle .so files properly.
 // REQUIRES: Clang

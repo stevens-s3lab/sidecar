@@ -1,6 +1,6 @@
 // Test that use-after-return works with exceptions.
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: %env_asan_opts=detect_stack_use_after_return=1 %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %env_asan_opts=detect_stack_use_after_return=1 %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 
 #include <stdio.h>
 

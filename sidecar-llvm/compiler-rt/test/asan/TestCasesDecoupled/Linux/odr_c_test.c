@@ -4,11 +4,11 @@
 // RUN: %clang_asan -fcommon %s -fPIC -shared -mllvm -asan-use-private-alias=0 -o %dynamiclib1  -DFILE1
 // RUN: %clang_asan -fcommon %s -fPIC -shared -mllvm -asan-use-private-alias=0 -o %dynamiclib2  -DFILE2
 // RUN: %clang_asan -fcommon %s -fPIE %ld_flags_rpath_exe1 %ld_flags_rpath_exe2 -o %t
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & not %run %t 2>&1 | FileCheck %s
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & not %run %t 2>&1 | FileCheck %s
 
 // RUN: %clang_asan -fcommon %s -fPIC -shared -mllvm -asan-use-private-alias=1 -o %dynamiclib1  -DFILE1
 // RUN: %clang_asan -fcommon %s -fPIC -shared -mllvm -asan-use-private-alias=1 -o %dynamiclib2  -DFILE2
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %run %t 2>&1 | count 0
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %run %t 2>&1 | count 0
 
 // CHECK: The following global variable is not properly aligned.
 // CHECK: ERROR: AddressSanitizer: odr-violation

@@ -1,6 +1,6 @@
 // RUN: %clang -fPIC -shared -O2 -D_FORTIFY_SOURCE=2 -D_DSO %s -o %t.so
 // RUN: %clang_asan %s -o %t %t.so
-// RUN: not %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 // REQUIRES: glibc-2.27
 #ifdef _DSO
 #include <stdio.h>

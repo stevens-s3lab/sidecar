@@ -1,8 +1,8 @@
 // RUN: %clangxx_asan -O2 %s -o %t
-// RUN: not %run taskset -c 0 %t g & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK 
-// RUN: not %run taskset -c 0 %t c & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run taskset -c 0 %t f & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run taskset -c 0 %t l & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK 
+// RUN: not %run taskset -c 0 %t g & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK 
+// RUN: not %run taskset -c 0 %t c & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t f & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t l & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK 
 
 // CHECK: AddressSanitizer: global-buffer-overflow
 

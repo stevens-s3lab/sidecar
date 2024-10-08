@@ -5,15 +5,15 @@
 // RUN: rm -rf %t-dir
 // RUN: mkdir -p %t-dir
 // RUN: cd %t-dir
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t
 // RUN: %sancov print *.sancov > main.txt
 // RUN: rm *.sancov
 // RUN: count 1 < main.txt
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x
 // RUN: %sancov print *.sancov > foo.txt
 // RUN: rm *.sancov
 // RUN: count 3 < foo.txt
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x x
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x x
 // RUN: %sancov print *.sancov > bar.txt
 // RUN: rm *.sancov
 // RUN: count 4 < bar.txt
@@ -33,11 +33,11 @@
 // RUN: rm -rf %t-dir
 // RUN: mkdir -p %t-dir
 // RUN: cd %t-dir
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x
 // RUN: %sancov print %xdynamiclib_filename.*.sancov > foo.txt
 // RUN: rm *.sancov
 // RUN: count 2 < foo.txt
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x x
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=coverage=1:coverage_dir=%t-dir %run taskset -c 0 %t x x
 // RUN: %sancov print %xdynamiclib_filename.*.sancov > bar.txt
 // RUN: rm *.sancov
 // RUN: count 3 < bar.txt

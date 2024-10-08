@@ -1,6 +1,6 @@
 // REQUIRES: x86_64-target-arch
 // RUN: %clangxx_asan  %s -o %t
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & not %run %t 2>&1 | FileCheck %s
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & not %run %t 2>&1 | FileCheck %s
 #include <sanitizer/common_interface_defs.h>
 #include <sched.h>
 #include <unistd.h>

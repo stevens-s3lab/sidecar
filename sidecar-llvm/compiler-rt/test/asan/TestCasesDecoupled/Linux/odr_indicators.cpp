@@ -1,8 +1,8 @@
 // RUN: %clangxx_asan -fPIC %s -o %t
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=report_globals=2 %run %t 2>&1 | FileCheck %s --check-prefixes=CHECK,INDICATOR0
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=report_globals=2 %run %t 2>&1 | FileCheck %s --check-prefixes=CHECK,INDICATOR0
 
 // RUN: %clangxx_asan -fsanitize-address-use-odr-indicator -fPIC %s -o %t
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=report_globals=2 %run %t 2>&1 | FileCheck %s --check-prefixes=CHECK,INDICATOR1
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & %env_asan_opts=report_globals=2 %run %t 2>&1 | FileCheck %s --check-prefixes=CHECK,INDICATOR1
 
 #include <stdio.h>
 

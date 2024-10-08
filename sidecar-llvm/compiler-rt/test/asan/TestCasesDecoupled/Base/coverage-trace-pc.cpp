@@ -1,7 +1,7 @@
 // Test -fsanitize-coverage=edge,indirect-call,trace-pc
 // RUN: %clangxx_asan -O0 -DTRACE_RT %s -o %t-rt.o -c
 // RUN: %clangxx_asan -O0 -fsanitize-coverage=edge,trace-pc,indirect-calls %s -o %t %t-rt.o
-// RUN: %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 #ifdef TRACE_RT
 int pc_count;
 void *last_callee;

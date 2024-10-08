@@ -1,13 +1,13 @@
 // Test strict_string_checks option in strstr function
-// RUN: %clang_asan %s -o %t && %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %clang_asan %s -o %t && %run taskset -c 0 %t 2>&1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 
 // Newer versions of Android's strstr() uses memchr() internally, which actually
 // does trigger a heap-buffer-overflow (as it tries to find the
 // null-terminator). The same applies to FreeBSD.
 // UNSUPPORTED: android, freebsd
-// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t 2>&1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 
-// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t 2>&1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 #include <assert.h>
 #include <stdlib.h>

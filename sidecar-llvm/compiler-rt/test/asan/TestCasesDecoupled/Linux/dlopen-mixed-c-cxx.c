@@ -1,7 +1,7 @@
 // RUN: %clangxx_asan -xc++ -shared -fPIC -o %t.so - < %s
 // RUN: %clang_asan %s -o %t.out -ldl
 //
-// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & { env ASAN_OPTIONS=verbosity=1 %t.out %t.so || : ; } 2>&1 | FileCheck %s
+// RUN: SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor & { env ASAN_OPTIONS=verbosity=1 %t.out %t.so || : ; } 2>&1 | FileCheck %s
 //
 // CHECK: AddressSanitizer: failed to intercept '__cxa_throw'
 //

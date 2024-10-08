@@ -4,9 +4,9 @@
 // strict init-order checking).
 
 // RUN: %clangxx_asan -O0 %s %p/../Helpers/initialization-bug-extra.cpp -o %t
-// RUN: %env_asan_opts=strict_init_order=true %run taskset -c 1 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=strict_init_order=true %run taskset -c 1 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 // RUN: %clangxx_asan -O0 %p/../Helpers/initialization-bug-extra.cpp %s -o %t
-// RUN: %env_asan_opts=strict_init_order=true %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=strict_init_order=true %run taskset -c 0 %t & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 
 // Do not test with optimization -- the error may be optimized away.
 

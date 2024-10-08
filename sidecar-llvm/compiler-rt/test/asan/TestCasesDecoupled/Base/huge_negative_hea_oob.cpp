@@ -1,5 +1,5 @@
-// RUN: %clangxx_asan %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
-// RUN: %clangxx_asan -O %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %clangxx_asan %s -o %t && not %run taskset -c 0 %t 2>&1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %clangxx_asan -O %s -o %t && not %run taskset -c 0 %t 2>&1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // Check that we can find huge buffer overflows to the left.
 #include <stdlib.h>
 #include <string.h>

@@ -1,6 +1,6 @@
 // RUN: %clangxx_asan -O0 -mllvm -asan-instrument-dynamic-allocas %s -o %t
 // RUN: %clangxx_asan -O3 -mllvm -asan-instrument-dynamic-allocas %s -o %t
-// RUN: %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %run taskset -c 0 %t 2>&1 & SIDECAR_BASE/sidecar-monitors/sideasan/x86-64/monitor
 //
 
 #include "sanitizer/asan_interface.h"
