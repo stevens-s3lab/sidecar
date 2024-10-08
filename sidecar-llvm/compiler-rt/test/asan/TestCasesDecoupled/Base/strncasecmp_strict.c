@@ -1,18 +1,18 @@
 // Test strict_string_checks option in strncmp function
 // RUN: %clang_asan %s -o %t
 
-// RUN: %env_asan_opts=strict_string_checks=false %run %t a 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true %run %t a 2>&1
-// RUN: not %run %t b 2>&1 | FileCheck %s
-// RUN: not %run %t c 2>&1 | FileCheck %s
-// RUN: not %run %t d 2>&1 | FileCheck %s
-// RUN: not %run %t e 2>&1 | FileCheck %s
-// RUN: not %run %t f 2>&1 | FileCheck %s
-// RUN: not %run %t g 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=strict_string_checks=false %run %t h 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t h 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=strict_string_checks=false %run %t i 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t i 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t a & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true %run taskset -c 0 %t a & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: not %run taskset -c 0 %t b & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t c & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t d & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t e & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t f & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t g & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t h & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t h & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t i & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t i & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 
 // XFAIL: windows-msvc
 

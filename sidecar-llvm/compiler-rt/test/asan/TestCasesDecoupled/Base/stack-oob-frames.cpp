@@ -1,8 +1,8 @@
 // RUN: %clangxx_asan -O1 %s -o %t
-// RUN: not %run %t 0 2>&1 | FileCheck %s --check-prefix=CHECK0
-// RUN: not %run %t 1 2>&1 | FileCheck %s --check-prefix=CHECK1
-// RUN: not %run %t 2 2>&1 | FileCheck %s --check-prefix=CHECK2
-// RUN: not %run %t 3 2>&1 | FileCheck %s --check-prefix=CHECK3
+// RUN: not %run taskset -c 0 %t 0 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK0
+// RUN: not %run taskset -c 0 %t 1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1
+// RUN: not %run taskset -c 0 %t 2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2
+// RUN: not %run taskset -c 0 %t 3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK3
 
 #define NOINLINE __attribute__((noinline))
 inline void break_optimization(void *arg) {

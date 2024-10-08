@@ -1,15 +1,15 @@
 // RUN: %clangxx_asan %stdcxx11 -O0 -fsanitize-address-use-after-scope %s -o %t
-// RUN: not %run %t 0 2>&1 | FileCheck %s
-// RUN: not %run %t 1 2>&1 | FileCheck %s
-// RUN: not %run %t 2 2>&1 | FileCheck %s
-// RUN: not %run %t 3 2>&1 | FileCheck %s
-// RUN: not %run %t 4 2>&1 | FileCheck %s
-// RUN: not %run %t 5 2>&1 | FileCheck %s
-// RUN: not %run %t 6 2>&1 | FileCheck %s
-// RUN: not %run %t 7 2>&1 | FileCheck %s
-// RUN: not %run %t 8 2>&1 | FileCheck %s
-// RUN: not %run %t 9 2>&1 | FileCheck %s
-// RUN: not %run %t 10 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 0 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 4 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 6 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 7 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 8 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 9 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 10 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 
 #include <stdlib.h>
 #include <string>

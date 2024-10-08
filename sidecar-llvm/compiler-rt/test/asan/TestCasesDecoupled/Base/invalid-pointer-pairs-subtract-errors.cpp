@@ -1,6 +1,6 @@
 // RUN: %clangxx_asan -O0 %s -o %t -mllvm -asan-detect-invalid-pointer-pair
 
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=2:halt_on_error=0 %run %t 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=2:halt_on_error=0 %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 #include <assert.h>
 #include <stdlib.h>

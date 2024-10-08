@@ -1,9 +1,9 @@
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: %env_asan_opts=malloc_context_size=0:fast_unwind_on_malloc=0 not %run %t 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=malloc_context_size=0:fast_unwind_on_malloc=1 not %run %t 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=malloc_context_size=1:fast_unwind_on_malloc=0 not %run %t 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=malloc_context_size=1:fast_unwind_on_malloc=1 not %run %t 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=malloc_context_size=2 not %run %t 2>&1 | FileCheck %s --check-prefix=TWO
+// RUN: %env_asan_opts=malloc_context_size=0:fast_unwind_on_malloc=0 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %env_asan_opts=malloc_context_size=0:fast_unwind_on_malloc=1 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %env_asan_opts=malloc_context_size=1:fast_unwind_on_malloc=0 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %env_asan_opts=malloc_context_size=1:fast_unwind_on_malloc=1 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %env_asan_opts=malloc_context_size=2 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --check-prefix=TWO
 
 int main() {
   char *x = new char[20];

@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O3 %s -o %t && %run %t
+// RUN: %clangxx_asan -O3 %s -o %t && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 // Test that no_sanitize_address attribute applies even when the function would
 // be normally inlined.

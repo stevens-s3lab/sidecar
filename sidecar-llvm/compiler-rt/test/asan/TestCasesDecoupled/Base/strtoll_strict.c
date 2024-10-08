@@ -1,26 +1,26 @@
 // Test strict_string_checks option in strtoll function
 // RUN: %clang_asan %s -o %t
-// RUN: %run %t test1 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test1 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test1 2>&1 | FileCheck %s --check-prefix=CHECK1
-// RUN: %run %t test2 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test2 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test2 2>&1 | FileCheck %s --check-prefix=CHECK2
-// RUN: %run %t test3 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test3 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test3 2>&1 | FileCheck %s --check-prefix=CHECK3
-// RUN: %run %t test4 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test4 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test4 2>&1 | FileCheck %s --check-prefix=CHECK4
-// RUN: %run %t test5 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test5 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test5 2>&1 | FileCheck %s --check-prefix=CHECK5
-// RUN: %run %t test6 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test6 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test6 2>&1 | FileCheck %s --check-prefix=CHECK6
-// RUN: %run %t test7 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false %run %t test7 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test7 2>&1 | FileCheck %s --check-prefix=CHECK7
+// RUN: %run taskset -c 0 %t test1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK1
+// RUN: %run taskset -c 0 %t test2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK2
+// RUN: %run taskset -c 0 %t test3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK3
+// RUN: %run taskset -c 0 %t test4 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test4 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test4 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK4
+// RUN: %run taskset -c 0 %t test5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK5
+// RUN: %run taskset -c 0 %t test6 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test6 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test6 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK6
+// RUN: %run taskset -c 0 %t test7 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false %run taskset -c 0 %t test7 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test7 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s --check-prefix=CHECK7
 
 // FIXME: Enable strtoll interceptor.
 // REQUIRES: shadow-scale-3

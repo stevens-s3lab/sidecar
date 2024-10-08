@@ -1,8 +1,8 @@
 // Test that use-after-return works with arguments passed by value.
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: %env_asan_opts=detect_stack_use_after_return=0 %run %t 2>&1 | \
+// RUN: %env_asan_opts=detect_stack_use_after_return=0 %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck --check-prefix=CHECK-NO-UAR %s
-// RUN: not %env_asan_opts=detect_stack_use_after_return=1 %run %t 2>&1 | \
+// RUN: not %env_asan_opts=detect_stack_use_after_return=1 %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck --check-prefix=CHECK-UAR %s
 //
 // On several architectures, the IR does not use byval arguments for foo() and

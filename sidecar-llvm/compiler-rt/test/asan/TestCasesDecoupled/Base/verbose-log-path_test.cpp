@@ -6,7 +6,7 @@
 
 // Good log_path.
 // RUN: rm -f %t-dir/asan.log.*
-// RUN: %env_asan_opts=log_path=%t-dir/asan.log:log_exe_name=1 not %run %t-dir/verbose-log-path_test-binary 2> %t.out
+// RUN: %env_asan_opts=log_path=%t-dir/asan.log:log_exe_name=1 not %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor-dir/verbose-log-path_test-binary 2> %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-ERROR < %t-dir/asan.log.verbose-log-path_test-binary.*
 
 // FIXME: only FreeBSD, NetBSD and Linux have verbose log paths now.

@@ -1,5 +1,5 @@
-// RUN: %clangxx_asan %s -o %t && %run %t
-// RUN: %clangxx_asan %s -o %t %linux_static_libstdcplusplus && %run %t
+// RUN: %clangxx_asan %s -o %t && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %clangxx_asan %s -o %t %linux_static_libstdcplusplus && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 // Investigate why it fails with NDK 21.
 // UNSUPPORTED: android

@@ -1,10 +1,10 @@
 // If user provides his own libc functions, ASan doesn't
 // intercept these functions.
 
-// RUN: %clangxx_asan -O0 %s -o %t && %run %t 2>&1 | FileCheck %s
-// RUN: %clangxx_asan -O1 %s -o %t && %run %t 2>&1 | FileCheck %s
-// RUN: %clangxx_asan -O2 %s -o %t && %run %t 2>&1 | FileCheck %s
-// RUN: %clangxx_asan -O3 %s -o %t && %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %clangxx_asan -O1 %s -o %t && %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %clangxx_asan -O2 %s -o %t && %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %clangxx_asan -O3 %s -o %t && %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // XFAIL: freebsd
 
 // On Windows, defining strtoll in a static build results in linker errors, but

@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O0 %s -o %t && not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & not %run taskset -c 0 %t 2>&1 | FileCheck %s
 
 #include <sanitizer/asan_interface.h>
 #include <stdio.h>

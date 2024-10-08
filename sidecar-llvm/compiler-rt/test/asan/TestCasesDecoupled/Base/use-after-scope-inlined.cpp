@@ -3,7 +3,7 @@
 // llvm.lifetime intrinsics at -O0.
 //
 // RUN: %clangxx_asan -O2 -fsanitize-address-use-after-scope %s -o %t && \
-// RUN:     not %run %t 2>&1 | FileCheck %s
+// RUN:     not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 int *arr;
 

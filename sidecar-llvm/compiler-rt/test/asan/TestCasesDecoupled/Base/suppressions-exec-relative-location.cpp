@@ -1,6 +1,6 @@
 // Check that without suppressions, we catch the issue.
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck --check-prefix=CHECK-CRASH %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck --check-prefix=CHECK-CRASH %s
 
 // If the executable is started from a different location, we should still
 // find the suppression file located relative to the location of the executable.
@@ -10,17 +10,17 @@
 // RUN: echo "interceptor_via_fun:crash_function" > \
 // RUN:   %t-dir/supp.txt
 // RUN: %env_asan_opts=suppressions='"supp.txt"' \
-// RUN:   %run %t-dir/exec 2>&1 | \
+// RUN:   %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor-dir/exec 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-IGNORE %s
 // RUN: rm -rf %t-dir
 
 // If the wrong absolute path is given, we don't try to construct
 // a relative path with it.
-// RUN: %env_asan_opts=suppressions='"/absolute/path"' not %run %t 2>&1 | \
+// RUN: %env_asan_opts=suppressions='"/absolute/path"' not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:   FileCheck --check-prefix=CHECK-WRONG-FILE-NAME %s
 
 // Test that we reject directory as filename.
-// RUN: %env_asan_opts=suppressions='"folder/only/"' not %run %t 2>&1 | \
+// RUN: %env_asan_opts=suppressions='"folder/only/"' not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:   FileCheck --check-prefix=CHECK-WRONG-FILE-NAME %s
 
 // XFAIL: android

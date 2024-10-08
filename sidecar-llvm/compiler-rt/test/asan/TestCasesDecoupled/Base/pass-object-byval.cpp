@@ -1,7 +1,7 @@
 // Verify that objects passed by value get red zones and that the copy
 // constructor is called.
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s --implicit-check-not \
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --implicit-check-not \
 // RUN:     Assertion{{.*}}failed
 
 // ASan instrumentation can't insert red-zones around inalloca parameters.

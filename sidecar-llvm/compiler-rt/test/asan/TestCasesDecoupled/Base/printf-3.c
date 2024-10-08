@@ -1,7 +1,7 @@
 // RUN: %clang_asan -O2 %s -o %t
-// RUN: %env_asan_opts=check_printf=1 not %run %t 2>&1 | FileCheck --check-prefix=CHECK-ON %s
-// RUN: %env_asan_opts=check_printf=0 %run %t 2>&1 | FileCheck --check-prefix=CHECK-OFF %s
-// RUN: not %run %t 2>&1 | FileCheck --check-prefix=CHECK-ON %s
+// RUN: %env_asan_opts=check_printf=1 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck --check-prefix=CHECK-ON %s
+// RUN: %env_asan_opts=check_printf=0 %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck --check-prefix=CHECK-OFF %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck --check-prefix=CHECK-ON %s
 
 // FIXME: printf is not intercepted on Windows yet.
 // XFAIL: windows-msvc

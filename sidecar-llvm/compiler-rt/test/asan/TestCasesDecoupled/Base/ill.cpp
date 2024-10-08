@@ -1,7 +1,7 @@
 // Test the handle_sigill option.
 //
-// RUN: %clangxx_asan %s -o %t && %env_asan_opts=handle_sigill=0 not --crash %run %t 2>&1 | FileCheck %s --check-prefix=CHECK0
-// RUN: %clangxx_asan %s -o %t && %env_asan_opts=handle_sigill=1 not %run %t 2>&1 | FileCheck %s --check-prefix=CHECK1
+// RUN: %clangxx_asan %s -o %t && %env_asan_opts=handle_sigill=0 not --crash %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --check-prefix=CHECK0
+// RUN: %clangxx_asan %s -o %t && %env_asan_opts=handle_sigill=1 not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --check-prefix=CHECK1
 // REQUIRES: x86-target-arch
 
 #ifdef _WIN32

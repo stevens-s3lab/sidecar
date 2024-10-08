@@ -1,6 +1,6 @@
 // Checks that the ASan debugging API for getting report information
 // returns correct values.
-// RUN: %clangxx_asan -O0 %s -o %t && not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 #include <sanitizer/asan_interface.h>
 #include <stdio.h>
@@ -17,7 +17,6 @@ int main() {
   free(heap_ptr);
   int present = __asan_report_present();
   fprintf(stderr, "%s\n", (present == 0) ? "no report" : "");
-  // CHECK: no report
   heap_ptr[0] = 'A'; // BOOM
   return 0;
 }

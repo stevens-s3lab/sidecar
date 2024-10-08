@@ -1,10 +1,10 @@
 // Sanity checking a test in pure C.
 // RUN: %clang_asan -O2 %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 // Sanity checking a test in pure C with -pie.
 // RUN: %clang_asan -O2 %s %pie %fPIE -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // REQUIRES: stable-runtime
 
 #include <stdlib.h>

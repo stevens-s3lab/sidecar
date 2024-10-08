@@ -2,11 +2,11 @@
 // REQUIRES: leak-detection
 //
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: not %run %t 0 2>&1 | FileCheck %s
-// RUN: not %run %t 1 2>&1 | FileCheck %s
-// RUN: not %run %t 1000 2>&1 | FileCheck %s
-// RUN: not %run %t 1000000 2>&1 | FileCheck %s
-// RUN: not %run %t 10000000 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 0 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 1000 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 1000000 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 10000000 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
 
 #include <cstdlib>
 #include <stdio.h>

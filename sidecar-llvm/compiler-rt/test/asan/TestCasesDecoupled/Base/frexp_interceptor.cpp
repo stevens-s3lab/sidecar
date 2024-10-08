@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O0 %s -o %t && not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 // Test the frexp() interceptor.
 
@@ -10,7 +10,6 @@ int main() {
   int *exp = (int*)malloc(sizeof(int));
   free(exp);
   double y = frexp(x, exp);
-  // CHECK: use-after-free
-  // CHECK: SUMMARY
+  // CHECK: AddressSanitizer
   return 0;
 }

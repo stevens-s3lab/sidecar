@@ -1,12 +1,12 @@
 // Test that small memcpy works correctly.
 
 // RUN: %clangxx_asan %s -o %t
-// RUN: not %run %t 8 24 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run %t 16 32 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run %t 24 40 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run %t 32 48 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run %t 40 56 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: not %run %t 48 64 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t 8 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 24 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t 16 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 32 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t 24 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 40 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t 32 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 48 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t 40 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 56 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: not %run taskset -c 0 %t 48 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 64 2>&1 | FileCheck %s --check-prefix=CHECK
 // REQUIRES: shadow-scale-3
 #include <assert.h>
 #include <string.h>

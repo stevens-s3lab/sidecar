@@ -1,33 +1,33 @@
 // Test that large memset/memcpy/memmove check the entire range.
 
-// RUN: %clangxx_asan -O0 -DTEST_MEMSET %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O0 -DTEST_MEMSET %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMSET
-// RUN: %clangxx_asan -O1 -DTEST_MEMSET %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O1 -DTEST_MEMSET %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMSET
-// RUN: %clangxx_asan -O2 -DTEST_MEMSET %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O2 -DTEST_MEMSET %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMSET
-// RUN: %clangxx_asan -O3 -DTEST_MEMSET %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O3 -DTEST_MEMSET %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMSET
 
-// RUN: %clangxx_asan -O0 -DTEST_MEMCPY %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O0 -DTEST_MEMCPY %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMCPY
-// RUN: %clangxx_asan -O1 -DTEST_MEMCPY %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O1 -DTEST_MEMCPY %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMCPY
-// RUN: %clangxx_asan -O2 -DTEST_MEMCPY %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O2 -DTEST_MEMCPY %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMCPY
-// RUN: %clangxx_asan -O3 -DTEST_MEMCPY %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O3 -DTEST_MEMCPY %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMCPY
 
-// RUN: %clangxx_asan -O0 -DTEST_MEMMOVE %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O0 -DTEST_MEMMOVE %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMMOVE
-// RUN: %clangxx_asan -O1 -DTEST_MEMMOVE %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O1 -DTEST_MEMMOVE %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMMOVE
-// RUN: %clangxx_asan -O2 -DTEST_MEMMOVE %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O2 -DTEST_MEMMOVE %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMMOVE
-// RUN: %clangxx_asan -O3 -DTEST_MEMMOVE %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O3 -DTEST_MEMMOVE %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMMOVE
 
-// RUN: %clangxx_asan -O2 -DTEST_MEMCPY_SIZE_OVERFLOW %s -o %t && not %run %t 2>&1 | \
+// RUN: %clangxx_asan -O2 -DTEST_MEMCPY_SIZE_OVERFLOW %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | \
 // RUN:     FileCheck %s --check-prefix=CHECK-MEMCPY_SIZE_OVERFLOW
 
 #include <assert.h>

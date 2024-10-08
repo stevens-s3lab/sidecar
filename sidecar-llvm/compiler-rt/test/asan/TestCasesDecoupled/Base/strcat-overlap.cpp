@@ -1,30 +1,30 @@
 // RUN: %clangxx_asan -O0 -fno-builtin %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // RUN: echo "interceptor_via_fun:bad_function" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 // RUN: echo "interceptor_name:strcat" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 //
 // RUN: %clangxx_asan -O1 -fno-builtin %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // RUN: echo "interceptor_via_fun:bad_function" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 // RUN: echo "interceptor_name:strcat" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 //
 // RUN: %clangxx_asan -O2 -fno-builtin %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // RUN: echo "interceptor_via_fun:bad_function" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 // RUN: echo "interceptor_name:strcat" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 //
 // RUN: %clangxx_asan -O3 -fno-builtin %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 // RUN: echo "interceptor_via_fun:bad_function" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 // RUN: echo "interceptor_name:strcat" > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 // This test when run with suppressions invokes undefined
 // behavior which can cause all sorts of bad things to happen

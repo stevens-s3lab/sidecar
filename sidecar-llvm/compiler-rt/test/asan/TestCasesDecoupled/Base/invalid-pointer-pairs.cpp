@@ -1,9 +1,9 @@
 // RUN: %clangxx_asan -O0 %s -o %t -mllvm -asan-detect-invalid-pointer-pair
 
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 %run %t k 2>&1 | FileCheck %s -check-prefix=OK -allow-empty
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 not %run %t g 2>&1 | FileCheck %s -check-prefix=CMP -check-prefix=ALL-ERRORS
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 not %run %t s 2>&1 | FileCheck %s -check-prefix=SUB -check-prefix=ALL-ERRORS
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 not %run %t f 2>&1 | FileCheck %s -check-prefix=FREE -check-prefix=ALL-ERRORS
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 %run taskset -c 0 %t k & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=OK -allow-empty
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 not %run taskset -c 0 %t g & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=CMP -check-prefix=ALL-ERRORS
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 not %run taskset -c 0 %t s & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=SUB -check-prefix=ALL-ERRORS
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=1 not %run taskset -c 0 %t f & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=FREE -check-prefix=ALL-ERRORS
 
 #include <assert.h>
 #include <stdlib.h>

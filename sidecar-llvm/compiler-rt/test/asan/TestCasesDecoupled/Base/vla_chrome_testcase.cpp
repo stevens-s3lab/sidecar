@@ -1,5 +1,5 @@
 // RUN: %clangxx_asan -O0 -mllvm -asan-instrument-dynamic-allocas %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 //
 
 // This is reduced testcase based on Chromium code.

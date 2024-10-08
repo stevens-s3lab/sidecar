@@ -8,26 +8,26 @@
 // RUN: %clangxx_asan  %s -o %t
 
 // Regular run.
-// RUN: not %run %t 2> %t.out
+// RUN: not %run taskset -c 0 %t 2> & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-ERROR < %t.out
 
 // Good log_path.
 // RUN: rm -f %t.log.*
-// RUN: %env_asan_opts=log_path=%t.log not %run %t 2> %t.out
+// RUN: %env_asan_opts=log_path=%t.log not %run taskset -c 0 %t 2> & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-ERROR < %t.log.*
 
 // Invalid log_path.
-// RUN: %env_asan_opts=log_path=/dev/null/INVALID not %run %t 2> %t.out
+// RUN: %env_asan_opts=log_path=/dev/null/INVALID not %run taskset -c 0 %t 2> & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-INVALID < %t.out
 
 // Too long log_path.
 // RUN: %env_asan_opts=log_path=`for((i=0;i<10000;i++)); do echo -n $i; done` \
-// RUN:   not %run %t 2> %t.out
+// RUN:   not %run taskset -c 0 %t 2> & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-LONG < %t.out
 
 // Run w/o errors should not produce any log.
 // RUN: rm -f %t.log.*
-// RUN: %env_asan_opts=log_path=%t.log  %run %t ARG ARG ARG
+// RUN: %env_asan_opts=log_path=%t.log  %run taskset -c 0 %t ARG & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor ARG ARG
 // RUN: not cat %t.log.*
 
 // FIXME: log_path is not supported on Windows yet.

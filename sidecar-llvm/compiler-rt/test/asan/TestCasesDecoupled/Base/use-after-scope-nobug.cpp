@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O1 -fsanitize-address-use-after-scope %s -o %t && %run %t
+// RUN: %clangxx_asan -O1 -fsanitize-address-use-after-scope %s -o %t && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 #include <stdio.h>
 #include <stdlib.h>

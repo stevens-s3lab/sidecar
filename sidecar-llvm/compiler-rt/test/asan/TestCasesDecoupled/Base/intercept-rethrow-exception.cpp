@@ -2,7 +2,7 @@
 // https://bugs.llvm.org/show_bug.cgi?id=32434
 
 // RUN: %clangxx_asan -fexceptions -O0 %s -o %t
-// RUN: %run %t
+// RUN: %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 // The current implementation of this functionality requires special
 // combination of libraries that are not used by default on NetBSD

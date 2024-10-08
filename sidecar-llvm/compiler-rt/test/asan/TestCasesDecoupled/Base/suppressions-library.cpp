@@ -2,13 +2,13 @@
 // RUN: %clangxx_asan -O0 %s -o %t %ld_flags_rpath_exe
 
 // Check that without suppressions, we catch the issue.
-// RUN: not %run %t 2>&1 | FileCheck --check-prefix=CHECK-CRASH %s
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck --check-prefix=CHECK-CRASH %s
 
 // FIXME: Remove usage of backticks around basename below.
 // REQUIRES: shell
 
 // RUN: echo "interceptor_via_lib:"%xdynamiclib_filename > %t.supp
-// RUN: %env_asan_opts=suppressions='"%t.supp"' %run %t 2>&1 | FileCheck --check-prefix=CHECK-IGNORE %s
+// RUN: %env_asan_opts=suppressions='"%t.supp"' %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck --check-prefix=CHECK-IGNORE %s
 
 // XFAIL: android
 

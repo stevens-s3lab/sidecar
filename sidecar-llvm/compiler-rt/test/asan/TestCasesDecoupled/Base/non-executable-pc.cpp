@@ -1,6 +1,6 @@
 // RUN: %clangxx_asan %s -o %t
-// RUN: not %run %t 0 2>&1 | FileCheck %s
-// RUN: not %run %t n 2>&1 | FileCheck %s -check-prefix=CHECK -check-prefix=NON_EXEC
+// RUN: not %run taskset -c 0 %t 0 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s
+// RUN: not %run taskset -c 0 %t n & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=CHECK -check-prefix=NON_EXEC
 
 // Not every OS lists every memory region in MemoryMappingLayout.
 // This is limited to x86_64 because some architectures (e.g. the s390 before

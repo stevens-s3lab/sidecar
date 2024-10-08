@@ -1,6 +1,6 @@
-// RUN: %clangxx_asan %s -o %t && %run %t
+// RUN: %clangxx_asan %s -o %t && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 // http://code.google.com/p/address-sanitizer/issues/detail?id=147 (not fixed).
-// BROKEN: %clangxx_asan %s -o %t -static-libstdc++ && %run %t
+// BROKEN: %clangxx_asan %s -o %t -static-libstdc++ && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 #include <stdio.h>
 static volatile int zero = 0;

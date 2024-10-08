@@ -1,10 +1,10 @@
 // RUN: %clang_asan -O0 %s -o %t
-// RUN: %run %t 0x00 2>&1 | FileCheck %s -check-prefix=X00
-// RUN: not %run %t 0xf1 2>&1 | FileCheck %s -check-prefix=XF1
-// RUN: not %run %t 0xf2 2>&1 | FileCheck %s -check-prefix=XF2
-// RUN: not %run %t 0xf3 2>&1 | FileCheck %s -check-prefix=XF3
-// RUN: not %run %t 0xf5 2>&1 | FileCheck %s -check-prefix=XF5
-// RUN: not %run %t 0xf8 2>&1 | FileCheck %s -check-prefix=XF8
+// RUN: %run taskset -c 0 %t 0x00 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=X00
+// RUN: not %run taskset -c 0 %t 0xf1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=XF1
+// RUN: not %run taskset -c 0 %t 0xf2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=XF2
+// RUN: not %run taskset -c 0 %t 0xf3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=XF3
+// RUN: not %run taskset -c 0 %t 0xf5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=XF5
+// RUN: not %run taskset -c 0 %t 0xf8 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck %s -check-prefix=XF8
 
 #include <assert.h>
 #include <sanitizer/asan_interface.h>

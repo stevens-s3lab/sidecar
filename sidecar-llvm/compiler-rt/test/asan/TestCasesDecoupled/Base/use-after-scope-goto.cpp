@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O0 -fsanitize-address-use-after-scope %s -o %t && %run %t
+// RUN: %clangxx_asan -O0 -fsanitize-address-use-after-scope %s -o %t && %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 // Function jumps over variable initialization making lifetime analysis
 // ambiguous. Asan should ignore such variable and program must not fail.

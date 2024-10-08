@@ -1,8 +1,8 @@
 // Check that __asan_poison_memory_region works.
-// RUN: %clangxx_asan -O0 %s -o %t && not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 //
 // Check that we can disable it
-// RUN: %env_asan_opts=allow_user_poisoning=0 %run %t
+// RUN: %env_asan_opts=allow_user_poisoning=0 %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 #include <stdlib.h>
 

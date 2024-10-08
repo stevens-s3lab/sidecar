@@ -1,7 +1,7 @@
 // RUN: %clangxx_asan -O0 %s -o %t -mllvm -asan-detect-invalid-pointer-pair
 
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=2 %run %t
-// RUN: %env_asan_opts=detect_invalid_pointer_pairs=2,detect_stack_use_after_return=1 %run %t
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=2 %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %env_asan_opts=detect_invalid_pointer_pairs=2,detect_stack_use_after_return=1 %run taskset -c 0 %t & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
 
 #include <assert.h>
 #include <stdlib.h>

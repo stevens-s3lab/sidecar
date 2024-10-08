@@ -1,18 +1,18 @@
 // RUN: %clangxx_asan -O2 %s -o %t
-// RUN: not %run %t -2 2>&1 | FileCheck --check-prefix=CHECK-m2 %s
-// RUN: not %run %t -1 2>&1 | FileCheck --check-prefix=CHECK-m1 %s
-// RUN: %run %t 0
-// RUN: %run %t 8
-// RUN: not %run %t 9  2>&1 | FileCheck --check-prefix=CHECK-9  %s
-// RUN: not %run %t 10 2>&1 | FileCheck --check-prefix=CHECK-10 %s
-// RUN: not %run %t 30 2>&1 | FileCheck --check-prefix=CHECK-30 %s
-// RUN: not %run %t 31 2>&1 | FileCheck --check-prefix=CHECK-31 %s
-// RUN: not %run %t 41 2>&1 | FileCheck --check-prefix=CHECK-41 %s
-// RUN: not %run %t 42 2>&1 | FileCheck --check-prefix=CHECK-42 %s
-// RUN: not %run %t 62 2>&1 | FileCheck --check-prefix=CHECK-62 %s
-// RUN: not %run %t 63 2>&1 | FileCheck --check-prefix=CHECK-63 %s
-// RUN: not %run %t 73 2>&1 | FileCheck --check-prefix=CHECK-73 %s
-// RUN: not %run %t 74 2>&1 | FileCheck --check-prefix=CHECK-74 %s
+// RUN: not %run taskset -c 0 %t -2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-m2 %s
+// RUN: not %run taskset -c 0 %t -1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-m1 %s
+// RUN: %run taskset -c 0 %t 0 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: %run taskset -c 0 %t 8 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor
+// RUN: not %run taskset -c 0 %t 9 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor  2>&1 | FileCheck --check-prefix=CHECK-9  %s
+// RUN: not %run taskset -c 0 %t 10 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-10 %s
+// RUN: not %run taskset -c 0 %t 30 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-30 %s
+// RUN: not %run taskset -c 0 %t 31 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-31 %s
+// RUN: not %run taskset -c 0 %t 41 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-41 %s
+// RUN: not %run taskset -c 0 %t 42 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-42 %s
+// RUN: not %run taskset -c 0 %t 62 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-62 %s
+// RUN: not %run taskset -c 0 %t 63 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-63 %s
+// RUN: not %run taskset -c 0 %t 73 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-73 %s
+// RUN: not %run taskset -c 0 %t 74 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | FileCheck --check-prefix=CHECK-74 %s
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

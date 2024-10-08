@@ -1,7 +1,7 @@
 // RUN: %clangxx_asan -O0 %s -o %t
-// RUN: not %run %t 2>&1 | FileCheck %s --check-prefix=SOURCE
-// RUN: %env_asan_opts=symbolize=false not %run %t 2>&1 | FileCheck %s --check-prefix=MODULE
-// RUN: %env_asan_opts=print_summary=false not %run %t 2>&1 | FileCheck %s --check-prefix=MISSING
+// RUN: not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --check-prefix=SOURCE
+// RUN: %env_asan_opts=symbolize=false not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --check-prefix=MODULE
+// RUN: %env_asan_opts=print_summary=false not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s --check-prefix=MISSING
 
 int main() {
   char *x = new char[20];

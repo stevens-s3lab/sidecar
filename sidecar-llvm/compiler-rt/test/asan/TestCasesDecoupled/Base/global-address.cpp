@@ -1,5 +1,5 @@
 // RUN: %clangxx_asan -o %t %s
-// RUN: not %run %t 2>&1 | FileCheck %s
+// RUN: /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor & not %run taskset -c 0 %t 2>&1 | FileCheck %s
 #include <sanitizer/allocator_interface.h>
 
 int g_i = 42;

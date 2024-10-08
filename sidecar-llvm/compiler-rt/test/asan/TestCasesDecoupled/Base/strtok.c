@@ -2,25 +2,25 @@
 
 // Test overflows with strict_string_checks
 
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test1 2>&1 | \
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | \
 // RUN:    FileCheck %s --check-prefix=CHECK1
-// RUN: %env_asan_opts=intercept_strtok=false %run %t test1 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test2 2>&1 | \
+// RUN: %env_asan_opts=intercept_strtok=false %run taskset -c 0 %t test1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | \
 // RUN:    FileCheck %s --check-prefix=CHECK2
-// RUN: %env_asan_opts=intercept_strtok=false %run %t test2 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true not %run %t test3 2>&1 | \
+// RUN: %env_asan_opts=intercept_strtok=false %run taskset -c 0 %t test2 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true not %run taskset -c 0 %t test3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | \
 // RUN:    FileCheck %s --check-prefix=CHECK3
-// RUN: %env_asan_opts=intercept_strtok=false %run %t test3 2>&1
-// RUN: %env_asan_opts=strict_string_checks=true %run %t test4 2>&1
-// RUN: %env_asan_opts=intercept_strtok=false %run %t test4 2>&1
+// RUN: %env_asan_opts=intercept_strtok=false %run taskset -c 0 %t test3 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=true %run taskset -c 0 %t test4 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=intercept_strtok=false %run taskset -c 0 %t test4 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
 
 // Test overflows with !strict_string_checks
-// RUN: %env_asan_opts=strict_string_checks=false not %run %t test5 2>&1 | \
+// RUN: %env_asan_opts=strict_string_checks=false not %run taskset -c 0 %t test5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | \
 // RUN:    FileCheck %s --check-prefix=CHECK5
-// RUN: %env_asan_opts=intercept_strtok=false %run %t test5 2>&1
-// RUN: %env_asan_opts=strict_string_checks=false not %run %t test6 2>&1 | \
+// RUN: %env_asan_opts=intercept_strtok=false %run taskset -c 0 %t test5 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
+// RUN: %env_asan_opts=strict_string_checks=false not %run taskset -c 0 %t test6 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1 | \
 // RUN:    FileCheck %s --check-prefix=CHECK6
-// RUN: %env_asan_opts=intercept_strtok=false %run %t test6 2>&1
+// RUN: %env_asan_opts=intercept_strtok=false %run taskset -c 0 %t test6 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor 2>&1
 
 
 #include <assert.h>

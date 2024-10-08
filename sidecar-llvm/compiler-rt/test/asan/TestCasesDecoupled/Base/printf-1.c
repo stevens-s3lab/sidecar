@@ -1,7 +1,7 @@
 // RUN: %clang_asan -O2 %s -o %t
-// RUN: %env_asan_opts=check_printf=1 %run %t 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=check_printf=0 %run %t 2>&1 | FileCheck %s
-// RUN: %run %t 2>&1 | FileCheck %s
+// RUN: %env_asan_opts=check_printf=1 %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %env_asan_opts=check_printf=0 %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
+// RUN: %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 #include <stdio.h>
 #if defined(_WIN32)

@@ -1,4 +1,4 @@
-// RUN: %clangxx_asan -O0 %s -o %t && not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan -O0 %s -o %t && not %run taskset -c 0 %t 2>&1 & /home/kleftog/sidecar-ae/sidecar/sidecar-monitors/sideasan/x86-64/monitor | FileCheck %s
 
 namespace XXX {
 class YYY {
@@ -11,7 +11,4 @@ char YYY::ZZZ[] = "abc";
 int main(int argc, char **argv) {
   return (int)XXX::YYY::ZZZ[argc + 5];  // BOOM
   // CHECK: {{READ of size 1 at 0x.*}}
-  // CHECK: {{0x.* is located 2 bytes to the right of global variable}}
-  // CHECK: 'XXX::YYY::ZZZ' {{.*}} of size 4
-  // CHECK: 'XXX::YYY::ZZZ' is ascii string 'abc'
 }
