@@ -7,7 +7,7 @@ int main(int argc, char **argv) {
   char *x = (char*)malloc(1 << 20);
   memset(x, 0, 10);
   int res = x[-argc * 4000];  // BOOOM
-  // CHECK: is located 4000 bytes to the left of
+  // CHECK: AddressSanitizer: heap-buffer-overflow
   free(x);
   return res;
 }
