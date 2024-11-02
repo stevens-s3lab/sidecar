@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     if (atoi(argv[1]) == 1) {
     	// This line should trigger a CFI violation
     	invalid_ptr();
-    } else if (atoi(argv[1]) == 1) {
+    } else {
 	// This shoud not trigger a CFI violation
     	ptr2();
     }
